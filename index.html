@@ -70,13 +70,12 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
 
 <details class="w" id="thw" open>
   <summary>Thumbnail</summary>
-  <label>Tajuk (satu baris setiap baris, baris akhir berwarna merah)</label>
-  <textarea id="tt" style="min-height:80px"></textarea>
-  <label>Detik dalam adegan (saat)</label>
-  <input id="tsec" inputmode="decimal">
   <button id="thbtn" class="p" style="margin-top:8px">Jana Thumbnail</button>
   <img id="thimg" style="display:none;width:100%;border-radius:12px;margin-top:10px">
   <a id="thdl" class="dl" style="margin-top:10px"></a>
+  <details style="margin-top:10px"><summary>Arahan thumbnail (daripada GitHub)</summary>
+    <textarea id="tt" style="min-height:200px"></textarea>
+  </details>
 </details>
 
 <script>
@@ -283,46 +282,45 @@ function finishRec(){
 }
 
 
-// ---------- thumbnail ----------
-function fitFont(g,txt,maxW,start){
-  for(let n=start;n>60;n-=4){ g.font='900 '+n+'px "Arial Black",Impact,"Helvetica Neue",Arial,sans-serif'; if(g.measureText(txt).width<=maxW) return n }
-  return 60;
+// ---------- thumbnail (Gemini jana imej daripada arahan dalam thumb.json) ----------
+let thCfg=null;
+async function loadThumbCfg(){
+  try{ thCfg=JSON.parse(await getText('thumb.json')); $('tt').value=thCfg.prompt||''; }catch(e){ thCfg=null }
+}
+function refFrame(t){
+  const c=document.createElement('canvas'); c.width=V.width; c.height=V.height;
+  V.hideLabels=true; try{V.draw(c.getContext('2d'),t,c.width,c.height)}finally{V.hideLabels=false}
+  const q=document.createElement('canvas'); q.width=540; q.height=960; q.getContext('2d').drawImage(c,0,0,540,960);
+  return q.toDataURL('image/jpeg',.88).split(',')[1];
 }
 async function makeThumb(){
   if(!V) return st('Muat adegan dahulu',1);
-  const lines=$('tt').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  const sec=parseFloat(String($('tsec').value).replace(',','.'));
-  const t=isFinite(sec)?Math.max(0,Math.min(sec,V.duration)):0;
-  const c=document.createElement('canvas'); c.width=V.width; c.height=V.height;
-  const g=c.getContext('2d');
-  V.hideLabels=true; try{V.draw(g,t,c.width,c.height)}finally{V.hideLabels=false}
-  if(lines.length){
-    const W=c.width,H=c.height;
-    const gr=g.createLinearGradient(0,0,0,H*.5); gr.addColorStop(0,'rgba(0,0,0,.82)'); gr.addColorStop(1,'rgba(0,0,0,0)');
-    g.fillStyle=gr; g.fillRect(0,0,W,H*.5);
-    g.textAlign='center'; g.textBaseline='middle'; g.lineJoin='round';
-    const sizes=lines.map((l,i)=>fitFont(g,l,W-150,i===lines.length-1?210:170));
-    const gap=26, tot=sizes.reduce((x,y)=>x+y,0)+gap*(lines.length-1);
-    let y=Math.max(230,H*.27-tot/2);
-    lines.forEach((l,i)=>{
-      const n=sizes[i]; y+=n/2;
-      g.font='900 '+n+'px "Arial Black",Impact,"Helvetica Neue",Arial,sans-serif';
-      const red=i===lines.length-1&&lines.length>1;
-      g.lineWidth=Math.round(n*.14); g.strokeStyle='#000'; g.strokeText(l,W/2,y);
-      g.save(); if(red){g.shadowColor='rgba(255,40,70,.75)';g.shadowBlur=36}
-      g.fillStyle=red?'#ff2d4a':'#ffffff'; g.fillText(l,W/2,y); g.restore();
-      y+=n/2+gap;
-    });
-  }
-  const url=await new Promise(r=>c.toBlob(b=>r(URL.createObjectURL(b)),'image/png'));
-  $('thimg').src=url; $('thimg').style.display='block';
-  const d=$('thdl'); d.href=url; d.download='thumbnail.png'; d.style.display='block'; d.textContent='Muat Turun Thumbnail (PNG, '+c.width+'×'+c.height+')';
-  st('Thumbnail siap.');
+  if(!thCfg) await loadThumbCfg();
+  if(!thCfg) return st('thumb.json tidak ditemui',1);
+  const prompt=$('tt').value.trim()||thCfg.prompt;
+  const key=$('gkey').value.trim();
+  const parts=[{text:prompt}];
+  if(thCfg.ref_t!=null) parts.push({inlineData:{mimeType:'image/jpeg',data:refFrame(+thCfg.ref_t)}});
+  const models=[thCfg.model||'gemini-3.1-flash-image','gemini-2.5-flash-image'];
+  $('thbtn').disabled=true; let lastErr='';
+  try{
+    for(const m of models){
+      st('Menjana thumbnail ('+m+')...');
+      const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+m+':generateContent?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts}],generationConfig:{responseModalities:['TEXT','IMAGE'],imageConfig:{aspectRatio:thCfg.aspect||'9:16'}}})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok){ lastErr=m+' '+r.status+': '+((j.error&&j.error.message)||''); continue }
+      const p=(((j.candidates||[])[0]||{}).content?.parts||[]).find(x=>x.inlineData);
+      if(!p){ lastErr=m+': tiada gambar dalam jawapan'; continue }
+      const mime=p.inlineData.mimeType||'image/png', url=URL.createObjectURL(new Blob([b64ToBytes(p.inlineData.data)],{type:mime}));
+      $('thimg').src=url; $('thimg').style.display='block';
+      const d=$('thdl'); d.href=url; d.download='thumbnail.'+(mime.includes('jpeg')?'jpg':'png'); d.style.display='block'; d.textContent='Muat Turun Thumbnail';
+      return st('Thumbnail siap.');
+    }
+    st(lastErr||'Gagal menjana thumbnail',1);
+  }catch(e){st(e.message,1)}
+  finally{$('thbtn').disabled=false}
 }
 $('thbtn').onclick=makeThumb;
-async function loadThumbCfg(){
-  try{ const j=JSON.parse(await getText('thumb.json')); $('tt').value=(j.lines||[]).join('\n'); $('tsec').value=j.t!=null?j.t:''; }catch(e){}
-}
 
 $('load').onclick=loadAll; $('voice').onclick=makeVoice; $('play').onclick=play; $('rec').onclick=startRec;
 loadAll();
