@@ -1,5 +1,5 @@
 (function(){
-const W=1080,H=1920,D=18,HOR=760,GY=1380,VPX=540;
+const W=1080,H=1920,D=19.8,HOR=760,GY=1380,VPX=540;
 const cl=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
 const sm=x=>{x=cl(x);return x*x*(3-2*x)};
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -116,8 +116,10 @@ function car(c,y,lane,pulse){
 const CARS=[
   {lane:-.2,  f:t=>HOR+40+(2700-HOR-40)*cl((t-.2)/2.6)},
   {lane:.22,  f:t=>HOR+40+(2700-HOR-40)*cl((t-1.6)/2.8)},
-  {lane:-.2,  f:t=>{ if(t<14.9)return lerp(HOR+40,1235,eo((t-5.6)/2.4)); return lerp(1235,2700,ei((t-14.9)/2.8))}},
-  {lane:.22,  f:t=>{ if(t<15.3)return lerp(HOR+40,1195,eo((t-6.2)/2.4)); return lerp(1195,2700,ei((t-15.3)/2.8))}}
+  {lane:-.2,  f:t=>HOR+40+(2700-HOR-40)*cl((t-3.4)/2.6)},
+  {lane:.22,  f:t=>HOR+40+(2700-HOR-40)*cl((t-4.4)/2.8)},
+  {lane:-.2,  f:t=>{ if(t<17)return lerp(HOR+40,1235,eo((t-8.0)/4.8)); return lerp(1235,1330,ei((t-17)/2.6))}},
+  {lane:.22,  f:t=>{ if(t<17.4)return lerp(HOR+40,1195,eo((t-8.6)/4.6)); return lerp(1195,1295,ei((t-17.4)/2.4))}}
 ];
 
 // ---------- zebra, laluan merah, cahaya ----------
@@ -172,10 +174,10 @@ function label(c,txt,x,y,a){
 }
 
 // ---------- keadaan watak ----------
-function elderX(t){return t<7.6?60:60+985*seg(t,7.6,14.2)}
+function elderX(t){if(t<9.4)return 60;const p=cl((t-9.4)/5.6);return 60+985*(.6*p+.4*sm(p))}
 function youngX(t){
-  if(t<4)return -190;
-  if(t<6.2)return lerp(-190,-35,seg(t,4,6.2));
+  if(t<6.3)return -330;
+  if(t<8.3)return lerp(-330,-35,seg(t,6.3,8.3));
   return elderX(t)-95;
 }
 function spd(f,t){return (f(t+.04)-f(t-.04))/.08}
@@ -183,19 +185,18 @@ function spd(f,t){return (f(t+.04)-f(t-.04))/.08}
 function people(c,t,refl){
   const ex=elderX(t),yx=youngX(t);
   const es=spd(elderX,t),ys=spd(youngX,t);
-  const eMove=cl(Math.abs(es)/110)*0.62,yMove=cl(Math.abs(ys)/110)*(t<6.2?0.95:0.62);
-  const eph=t<7.6?t*1.4:(ex-60)/70*Math.PI;
-  const yph=t<6.2?yx/80*Math.PI:(yx+35)/70*Math.PI+(-35/80*Math.PI);
-  const elder={x:ex,y:GY,s:.93,col:'#cfcfd6',ph:eph,amp:t<7.6?.08+.05*Math.sin(t*1.3):Math.max(eMove,.1),
-    lean:.30+.03*Math.sin(t*2.2),head:t<4.5?.15+.35*Math.sin(t*1.7):.1,stick:true,glow:false,armA:null,armB:null};
-  const young={x:yx,y:GY,s:1,col:'#ffffff',ph:yph,amp:t<4?0:Math.max(yMove,t>=6.2&&t<7.6?0:0.0),lean:.1,head:-.05,glow:true,armA:null,armB:null};
-  if(t>=14.3){young.amp=0;elder.amp=Math.max(0,elder.amp*cl(1-(t-14.3)*2))}
-  if(t>=6.2&&t<7.6){young.amp=0}
+  const eMove=cl(Math.abs(es)/110)*0.85,yMove=cl(Math.abs(ys)/110)*(t<8.3?0.95:0.85);
+  const eph=t<9.4?t*1.4:(ex-60)/100*Math.PI;
+  const yph=t<8.3?yx/80*Math.PI:(yx+35)/100*Math.PI+(-35/80*Math.PI);
+  const elder={x:ex,y:GY,s:.93,col:'#cfcfd6',ph:eph,amp:t<9.4?.08+.05*Math.sin(t*1.3):Math.max(eMove,.1),
+    lean:.30+.03*Math.sin(t*2.2),head:t<8.5?.15+.35*Math.sin(t*1.7):.1,stick:true,glow:false,armA:null,armB:null};
+  const young={x:yx,y:GY,s:1,col:'#ffffff',ph:yph,amp:t<6.3?0:(t>=8.3&&t<9.4?0:yMove),lean:.1,head:-.05,glow:true,armA:null,armB:null};
+  if(t>=15.0){young.amp=0;elder.amp=Math.max(0,elder.amp*cl(1-(t-15.0)*2))}
   // tongkat: tangan A orang tua
   let sh=shoulder(elder);
   elder.armA=[sh[0]+70*elder.s,sh[1]+112*elder.s];
   // berpegangan tangan
-  const hold=seg(t,6.2,7.0);
+  const hold=seg(t,8.5,9.3);
   if(hold>0){
     const ys_=shoulder(young),es_=shoulder(elder);
     const P=[(ys_[0]+es_[0])/2+8,Math.max(ys_[1],es_[1])+118];
@@ -204,7 +205,7 @@ function people(c,t,refl){
     elder.armB=[lerp(es_[0]+4,P[0],hold),lerp(es_[1]+138,P[1],hold)];
   }
   // isyarat berhenti: tangan B budak muda
-  const stop=seg(t,7.0,7.8)*(1-seg(t,9.0,9.8));
+  const stop=seg(t,8.9,9.5)*(1-seg(t,10.6,11.2));
   if(stop>0.001){
     const ys_=shoulder(young);
     young.armB=[ys_[0]+lerp(10,78,stop),ys_[1]+lerp(150,-118,stop)];
@@ -236,8 +237,8 @@ draw(c,t,w,h){
   c.translate(W/2,ay);c.scale(z,z);c.translate(-camX,-ay);
   for(const sx of [-W,0,W])c.drawImage(sky,sx,0);
   crowd(c,t);
-  floor(c,t,t>=7.0?elderX(t):0);
-  const mid=t<7?60:(youngX(t)+elderX(t))/2;
+  floor(c,t,t>=9.4?elderX(t):0);
+  const mid=t<8.3?60:(youngX(t)+elderX(t))/2;
   pool(c,mid,1);
   const cars=CARS.map(k=>({y:k.f(t),lane:k.lane}));
   const pulse=.5+.5*Math.sin(t*9);
@@ -248,18 +249,18 @@ draw(c,t,w,h){
   const P=people(c,t,false);
   for(const k of cars.filter(k=>k.y>=GY).sort((a,b)=>a.y-b.y))car(c,k.y,k.lane,pulse);
   // hati merah
-  const hs=seg(t,14.3,15.1);
-  if(hs>0){const x=(youngX(t)+elderX(t))/2+30,pls=1+.08*Math.sin((t-14.3)*5);heart(c,x,GY-560-hs*20,(.4+.6*Math.min(1,hs*1.2))*pls,hs)}
+  const hs=seg(t,15.0,15.8);
+  if(hs>0){const x=(youngX(t)+elderX(t))/2+30,pls=1+.08*Math.sin((t-15.0)*5);heart(c,x,GY-560-hs*20,(.4+.6*Math.min(1,hs*1.2))*pls,hs)}
   c.restore();
   // kabus & vinjet
   const vg=c.createRadialGradient(W/2,H*.5,H*.28,W/2,H*.5,H*.75);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.72)');
   c.fillStyle=vg;c.fillRect(0,0,W,H);
   // teks atas
-  label(c,'PAKCIK',300,150,seg(t,4.4,5)*(1-seg(t,7.4,8)));
-  label(c,'ANAK MUDA',790,150,seg(t,4.7,5.3)*(1-seg(t,7.4,8)));
-  label(c,'KEBAIKAN KECIL',W/2,150,seg(t,14.6,15.4)*(1-seg(t,17.2,17.8)));
+  label(c,'PAKCIK',300,150,seg(t,8.3,8.9)*(1-seg(t,10.2,10.8)));
+  label(c,'ANAK MUDA',790,150,seg(t,8.6,9.2)*(1-seg(t,10.2,10.8)));
+  label(c,'KEBAIKAN KECIL',W/2,150,seg(t,16.2,16.8)*(1-seg(t,18.6,19.2)));
   // fade
   c.fillStyle='rgba(0,0,0,'+(1-seg(t,0,.5))+')';c.fillRect(0,0,W,H);
-  c.fillStyle='rgba(0,0,0,'+seg(t,17.3,18)+')';c.fillRect(0,0,W,H);
+  c.fillStyle='rgba(0,0,0,'+seg(t,18.9,19.6)+')';c.fillRect(0,0,W,H);
 }};
 })();
