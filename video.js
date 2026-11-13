@@ -92,7 +92,7 @@ function fig(c,o,refl){
 // ---------- kereta (pandangan depan) ----------
 function car(c,y,lane,pulse){
   const s=(y-HOR)/(GY-HOR);if(s<=0.02||y-170*s>H+40)return;
-  const cx=VPX+lane*(y-HOR),w=300*s,h=160*s;
+  const cx=VPX+lane*(y-HOR),w=340*s,h=170*s;
   c.save();
   // cahaya ke lantai
   const lg=c.createLinearGradient(0,y,0,y+260*s);lg.addColorStop(0,'rgba(255,248,225,'+(.22+.1*pulse)+')');lg.addColorStop(1,'rgba(255,248,225,0)');
@@ -114,11 +114,10 @@ function car(c,y,lane,pulse){
   c.restore();
 }
 const CARS=[
-  {lane:-.17, f:t=>HOR+40+(2700-HOR-40)*cl((t-.2)/2.6)},
-  {lane:.15,  f:t=>HOR+40+(2700-HOR-40)*cl((t-1.4)/2.7)},
-  {lane:-.17, f:t=>HOR+40+(2700-HOR-40)*cl((t-2.4)/2.6)},
-  {lane:-.17, f:t=>{ if(t<16.3)return lerp(HOR+40,1010,eo((t-6.6)/2.8)); return lerp(1010,1090,ei((t-16.3)/1.7))}},
-  {lane:.15,  f:t=>{ if(t<16.8)return lerp(HOR+40,960,eo((t-7.0)/2.8)); return lerp(960,1030,ei((t-16.8)/1.2))}}
+  {lane:-.2,  f:t=>HOR+40+(2700-HOR-40)*cl((t-.2)/2.6)},
+  {lane:.22,  f:t=>HOR+40+(2700-HOR-40)*cl((t-1.6)/2.8)},
+  {lane:-.2,  f:t=>{ if(t<14.9)return lerp(HOR+40,1235,eo((t-5.6)/2.4)); return lerp(1235,2700,ei((t-14.9)/2.8))}},
+  {lane:.22,  f:t=>{ if(t<15.3)return lerp(HOR+40,1195,eo((t-6.2)/2.4)); return lerp(1195,2700,ei((t-15.3)/2.8))}}
 ];
 
 // ---------- zebra, laluan merah, cahaya ----------
@@ -146,8 +145,8 @@ function floor(c,t,px){
     c.beginPath();c.moveTo(xa-wa,1300);c.lineTo(xa+wa,1300);c.lineTo(xb+wb,1470);c.lineTo(xb-wb,1470);c.closePath();c.fill();
   }
   // laluan merah mengikut langkah
-  if(px>175){
-    const x0=175,x1=px,y=GY+14;
+  if(px>65){
+    const x0=60,x1=px,y=GY+14;
     const g=c.createLinearGradient(x0,0,x1,0);g.addColorStop(0,'rgba(255,40,60,0)');g.addColorStop(.25,'rgba(255,40,60,.9)');g.addColorStop(1,'rgba(255,70,90,1)');
     c.save();c.shadowColor='rgba(255,40,60,.9)';c.shadowBlur=18;c.strokeStyle=g;c.lineWidth=5;c.lineCap='round';
     c.beginPath();c.moveTo(x0,y);c.lineTo(x1,y);c.stroke();c.restore();
@@ -173,10 +172,10 @@ function label(c,txt,x,y,a){
 }
 
 // ---------- keadaan watak ----------
-function elderX(t){return t<9.9?200:200+700*(.5*cl((t-9.9)/4.3)+.5*seg(t,9.9,14.2))}
+function elderX(t){return t<7.6?60:60+985*seg(t,7.6,14.2)}
 function youngX(t){
-  if(t<5.0)return -190;
-  if(t<6.8)return lerp(-190,105,seg(t,5.0,6.8));
+  if(t<4)return -190;
+  if(t<6.2)return lerp(-190,-35,seg(t,4,6.2));
   return elderX(t)-95;
 }
 function spd(f,t){return (f(t+.04)-f(t-.04))/.08}
@@ -184,18 +183,19 @@ function spd(f,t){return (f(t+.04)-f(t-.04))/.08}
 function people(c,t,refl){
   const ex=elderX(t),yx=youngX(t);
   const es=spd(elderX,t),ys=spd(youngX,t);
-  const eMove=cl(Math.abs(es)/110)*0.62,yMove=cl(Math.abs(ys)/110)*(t<6.8?0.95:0.62);
-  const eph=t<9.9?t*1.4:(ex-200)/70*Math.PI;
-  const yph=t<6.8?yx/80*Math.PI:(yx-105)/70*Math.PI+(105/80*Math.PI);
-  const elder={x:ex,y:GY,s:.93,col:'#cfcfd6',ph:eph,amp:t<9.9?.08+.05*Math.sin(t*1.3):Math.max(eMove,.1),
+  const eMove=cl(Math.abs(es)/110)*0.62,yMove=cl(Math.abs(ys)/110)*(t<6.2?0.95:0.62);
+  const eph=t<7.6?t*1.4:(ex-60)/70*Math.PI;
+  const yph=t<6.2?yx/80*Math.PI:(yx+35)/70*Math.PI+(-35/80*Math.PI);
+  const elder={x:ex,y:GY,s:.93,col:'#cfcfd6',ph:eph,amp:t<7.6?.08+.05*Math.sin(t*1.3):Math.max(eMove,.1),
     lean:.30+.03*Math.sin(t*2.2),head:t<4.5?.15+.35*Math.sin(t*1.7):.1,stick:true,glow:false,armA:null,armB:null};
-  const young={x:yx,y:GY,s:1,col:'#ffffff',ph:yph,amp:t<5.0?0:(t>=6.8&&t<9.9?0:yMove),lean:.1,head:-.05,glow:true,armA:null,armB:null};
-  if(t>=14.2){young.amp=0;elder.amp=Math.max(0,elder.amp*cl(1-(t-14.2)*2))}
+  const young={x:yx,y:GY,s:1,col:'#ffffff',ph:yph,amp:t<4?0:Math.max(yMove,t>=6.2&&t<7.6?0:0.0),lean:.1,head:-.05,glow:true,armA:null,armB:null};
+  if(t>=14.3){young.amp=0;elder.amp=Math.max(0,elder.amp*cl(1-(t-14.3)*2))}
+  if(t>=6.2&&t<7.6){young.amp=0}
   // tongkat: tangan A orang tua
   let sh=shoulder(elder);
   elder.armA=[sh[0]+70*elder.s,sh[1]+112*elder.s];
   // berpegangan tangan
-  const hold=seg(t,6.8,7.6);
+  const hold=seg(t,6.2,7.0);
   if(hold>0){
     const ys_=shoulder(young),es_=shoulder(elder);
     const P=[(ys_[0]+es_[0])/2+8,Math.max(ys_[1],es_[1])+118];
@@ -204,7 +204,7 @@ function people(c,t,refl){
     elder.armB=[lerp(es_[0]+4,P[0],hold),lerp(es_[1]+138,P[1],hold)];
   }
   // isyarat berhenti: tangan B budak muda
-  const stop=seg(t,7.8,8.4)*(1-seg(t,9.4,9.9));
+  const stop=seg(t,7.0,7.8)*(1-seg(t,9.0,9.8));
   if(stop>0.001){
     const ys_=shoulder(young);
     young.armB=[ys_[0]+lerp(10,78,stop),ys_[1]+lerp(150,-118,stop)];
@@ -224,20 +224,20 @@ function crowd(c,t){
   c.restore();
 }
 
-window.VIDEO={width:W,height:H,fps:30,duration:D,loop:false,beats:[0,3.46,5.0,10.0,13.05,15.1,17.3],
+window.VIDEO={width:W,height:H,fps:30,duration:D,loop:false,
 draw(c,t,w,h){
   if(!sky)buildSky();
   t=cl(t,0,D);
   c.save();
   c.fillStyle='#050507';c.fillRect(0,0,W,H);
   // kamera: zum perlahan dan ikut watak
-  const camX=330+.62*(elderX(t)-200);
+  const camX=200+.62*(elderX(t)-60);
   const z=1.3+.05*(t/D),ay=1290;
   c.translate(W/2,ay);c.scale(z,z);c.translate(-camX,-ay);
   for(const sx of [-W,0,W])c.drawImage(sky,sx,0);
   crowd(c,t);
-  floor(c,t,t>=9.9?elderX(t):0);
-  const mid=t<5?200:(youngX(t)+elderX(t))/2;
+  floor(c,t,t>=7.0?elderX(t):0);
+  const mid=t<7?60:(youngX(t)+elderX(t))/2;
   pool(c,mid,1);
   const cars=CARS.map(k=>({y:k.f(t),lane:k.lane}));
   const pulse=.5+.5*Math.sin(t*9);
@@ -248,16 +248,16 @@ draw(c,t,w,h){
   const P=people(c,t,false);
   for(const k of cars.filter(k=>k.y>=GY).sort((a,b)=>a.y-b.y))car(c,k.y,k.lane,pulse);
   // hati merah
-  const hs=seg(t,14.4,15.2);
-  if(hs>0){const x=(youngX(t)+elderX(t))/2+30,pls=1+.08*Math.sin((t-14.4)*5);heart(c,x,GY-560-hs*20,(.4+.6*Math.min(1,hs*1.2))*pls,hs)}
+  const hs=seg(t,14.3,15.1);
+  if(hs>0){const x=(youngX(t)+elderX(t))/2+30,pls=1+.08*Math.sin((t-14.3)*5);heart(c,x,GY-560-hs*20,(.4+.6*Math.min(1,hs*1.2))*pls,hs)}
   c.restore();
   // kabus & vinjet
   const vg=c.createRadialGradient(W/2,H*.5,H*.28,W/2,H*.5,H*.75);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.72)');
   c.fillStyle=vg;c.fillRect(0,0,W,H);
   // teks atas
-  label(c,'PAKCIK',300,150,seg(t,5.4,6)*(1-seg(t,8,8.6)));
-  label(c,'ANAK MUDA',790,150,seg(t,5.7,6.3)*(1-seg(t,8,8.6)));
-  label(c,'KEBAIKAN KECIL',W/2,150,seg(t,15.1,15.7)*(1-seg(t,17.2,17.8)));
+  label(c,'PAKCIK',300,150,seg(t,4.4,5)*(1-seg(t,7.4,8)));
+  label(c,'ANAK MUDA',790,150,seg(t,4.7,5.3)*(1-seg(t,7.4,8)));
+  label(c,'KEBAIKAN KECIL',W/2,150,seg(t,14.6,15.4)*(1-seg(t,17.2,17.8)));
   // fade
   c.fillStyle='rgba(0,0,0,'+(1-seg(t,0,.5))+')';c.fillRect(0,0,W,H);
   c.fillStyle='rgba(0,0,0,'+seg(t,17.3,18)+')';c.fillRect(0,0,W,H);
