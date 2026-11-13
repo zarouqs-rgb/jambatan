@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pemain Video</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0f1419;color:#e6e9ee;font-family:system-ui,sans-serif;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+#wrap{width:min(100%,420px)}
+canvas{width:100%;height:auto;border-radius:12px;background:#000;display:block}
+.row{display:flex;gap:8px;width:min(100%,420px)}
+button{flex:1;padding:14px 8px;border:0;border-radius:10px;font-size:15px;font-weight:600;background:#2a3440;color:#e6e9ee}
+button.p{background:#3b82f6;color:#fff}
+button:disabled{opacity:.5}
+#st{font-size:13px;color:#9fb0c2;min-height:18px;text-align:center}
+#st.err{color:#ff8a8a}
+video{width:min(100%,420px);border-radius:12px;background:#000}
+a.dl{display:none;width:min(100%,420px);text-align:center;padding:14px;border-radius:10px;background:#16a34a;color:#fff;font-weight:600;text-decoration:none}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<div id="st"></div>
+<div class="row">
+  <button id="reload">Muat Semula Kod</button>
+  <button id="play" class="p">Main</button>
+</div>
+<div class="row"><button id="rec" class="p">Rakam &amp; Simpan</button></div>
+<video id="pv" controls playsinline style="display:none"></video>
+<a id="dl" class="dl">Muat Turun Video</a>
+
+<script>
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+let V = null, playing = false, t0 = 0, recording = false, raf = 0;
+const st = (m, e) => { $('st').textContent = m; $('st').className = e ? 'err' : ''; };
+
+function loadCode() {
+  return new Promise((res, rej) => {
+    const old = document.getElementById('vjs');
+    if (old) old.remove();
+    window.VIDEO = null;
+    const s = document.createElement('script');
+    s.id = 'vjs';
+    s.src = 'video.js?t=' + Date.now();
+    s.onload = () => window.VIDEO ? res(window.VIDEO) : rej(new Error('video.js tidak menetapkan VIDEO'));
+    s.onerror = () => rej(new Error('Gagal memuatkan video.js'));
+    document.body.appendChild(s);
+  });
+}
+
+function frame(t) {
+  try { V.draw(ctx, t, cv.width, cv.height); }
+  catch (e) { st('Ralat kod video: ' + e.message, 1); playing = false; }
+}
+
+function tick(now) {
+  if (!playing) return;
+  const el = (now - t0) / 1000;
+  if (recording) {
+    if (el >= V.duration) { finishRec(); return; }
+    frame(el);
+  } else {
+    frame(el % V.duration);
+  }
+  raf = requestAnimationFrame(tick);
+}
+
+async function init() {
+  try {
+    st('Memuatkan kod video...');
+    playing = false; cancelAnimationFrame(raf);
+    V = await loadCode();
+    cv.width = V.width; cv.height = V.height;
+    frame(0);
+    st('Kod dimuatkan. ' + V.width + '×' + V.height + ', ' + V.duration + ' saat.');
+  } catch (e) { st(e.message, 1); }
+}
+
+function play() {
+  if (!V) return;
+  if (playing && !recording) { playing = false; $('play').textContent = 'Main'; return; }
+  playing = true; t0 = performance.now();
+  $('play').textContent = 'Henti';
+  raf = requestAnimationFrame(tick);
+}
+
+let mr, chunks = [];
+function pickMime() {
+  const c = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  return c.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
+}
+
+function startRec() {
+  if (!V || recording) return;
+  if (!window.MediaRecorder) return st('Pelayar ini tidak menyokong rakaman', 1);
+  const mime = pickMime();
+  const stream = cv.captureStream(V.fps || 30);
+  mr = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8e6 } : { videoBitsPerSecond: 8e6 });
+  chunks = [];
+  mr.ondataavailable = e => e.data.size && chunks.push(e.data);
+  mr.onstop = () => {
+    const type = (mr.mimeType || mime || 'video/webm').split(';')[0];
+    const blob = new Blob(chunks, { type });
+    const url = URL.createObjectURL(blob);
+    const ext = type.includes('mp4') ? 'mp4' : 'webm';
+    const pv = $('pv'); pv.src = url; pv.style.display = 'block';
+    const dl = $('dl'); dl.href = url; dl.download = 'video.' + ext; dl.style.display = 'block';
+    dl.textContent = 'Muat Turun Video (' + ext.toUpperCase() + ', ' + (blob.size / 1048576).toFixed(1) + ' MB)';
+    st('Siap direkod.');
+    $('rec').disabled = false; $('play').disabled = false;
+  };
+  recording = true; playing = true; t0 = performance.now();
+  $('rec').disabled = true; $('play').disabled = true;
+  st('Merekod ' + V.duration + ' saat...');
+  mr.start(250);
+  raf = requestAnimationFrame(tick);
+}
+
+function finishRec() {
+  frame(V.duration - 0.001);
+  recording = false; playing = false;
+  $('play').textContent = 'Main';
+  setTimeout(() => mr.stop(), 150);
+}
+
+$('reload').onclick = init;
+$('play').onclick = play;
+$('rec').onclick = startRec;
+init();
+</script>
+</body>
+</html>
