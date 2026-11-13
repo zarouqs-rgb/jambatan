@@ -225,7 +225,7 @@ function crowd(c,t){
   c.restore();
 }
 
-window.VIDEO={width:W,height:H,fps:30,duration:D,loop:false,
+window.VIDEO={width:W,height:H,fps:30,duration:D,loop:false,beats:[.3,4.98,6.84,12.58,14.03,16.16,18.78],
 draw(c,t,w,h){
   if(!sky)buildSky();
   t=cl(t,0,D);
