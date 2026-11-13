@@ -68,6 +68,17 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
 <video id="pv" class="w" controls playsinline style="display:none"></video>
 <a id="dl" class="w dl"></a>
 
+<details class="w" id="thw" open>
+  <summary>Thumbnail</summary>
+  <label>Tajuk (satu baris setiap baris, baris akhir berwarna merah)</label>
+  <textarea id="tt" style="min-height:80px"></textarea>
+  <label>Detik dalam adegan (saat)</label>
+  <input id="tsec" inputmode="decimal">
+  <button id="thbtn" class="p" style="margin-top:8px">Jana Thumbnail</button>
+  <img id="thimg" style="display:none;width:100%;border-radius:12px;margin-top:10px">
+  <a id="thdl" class="dl" style="margin-top:10px"></a>
+</details>
+
 <script>
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d');
@@ -173,6 +184,7 @@ async function loadAll(){
     V=await runCode(await getText('video.js'));
     cv.width=V.width; cv.height=V.height; frame(0);
     try{ $('script').value=(await getText('skrip.txt')).trim(); }catch(e){}
+    await loadThumbCfg();
     st('Siap dimuatkan: '+V.width+'×'+V.height+', adegan '+V.duration+' saat'+(V.loop===false?'.':' (berulang).'));
   }catch(e){st(e.message,1)}
 }
@@ -268,6 +280,48 @@ function finishRec(){
   recording=false; playing=false; $('play').textContent='Main';
   try{src&&src.stop()}catch(e){} src=null;
   setTimeout(()=>mr.stop(),200);
+}
+
+
+// ---------- thumbnail ----------
+function fitFont(g,txt,maxW,start){
+  for(let n=start;n>60;n-=4){ g.font='900 '+n+'px "Arial Black",Impact,"Helvetica Neue",Arial,sans-serif'; if(g.measureText(txt).width<=maxW) return n }
+  return 60;
+}
+async function makeThumb(){
+  if(!V) return st('Muat adegan dahulu',1);
+  const lines=$('tt').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const sec=parseFloat(String($('tsec').value).replace(',','.'));
+  const t=isFinite(sec)?Math.max(0,Math.min(sec,V.duration)):0;
+  const c=document.createElement('canvas'); c.width=V.width; c.height=V.height;
+  const g=c.getContext('2d');
+  V.hideLabels=true; try{V.draw(g,t,c.width,c.height)}finally{V.hideLabels=false}
+  if(lines.length){
+    const W=c.width,H=c.height;
+    const gr=g.createLinearGradient(0,0,0,H*.5); gr.addColorStop(0,'rgba(0,0,0,.82)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=gr; g.fillRect(0,0,W,H*.5);
+    g.textAlign='center'; g.textBaseline='middle'; g.lineJoin='round';
+    const sizes=lines.map((l,i)=>fitFont(g,l,W-150,i===lines.length-1?210:170));
+    const gap=26, tot=sizes.reduce((x,y)=>x+y,0)+gap*(lines.length-1);
+    let y=Math.max(230,H*.27-tot/2);
+    lines.forEach((l,i)=>{
+      const n=sizes[i]; y+=n/2;
+      g.font='900 '+n+'px "Arial Black",Impact,"Helvetica Neue",Arial,sans-serif';
+      const red=i===lines.length-1&&lines.length>1;
+      g.lineWidth=Math.round(n*.14); g.strokeStyle='#000'; g.strokeText(l,W/2,y);
+      g.save(); if(red){g.shadowColor='rgba(255,40,70,.75)';g.shadowBlur=36}
+      g.fillStyle=red?'#ff2d4a':'#ffffff'; g.fillText(l,W/2,y); g.restore();
+      y+=n/2+gap;
+    });
+  }
+  const url=await new Promise(r=>c.toBlob(b=>r(URL.createObjectURL(b)),'image/png'));
+  $('thimg').src=url; $('thimg').style.display='block';
+  const d=$('thdl'); d.href=url; d.download='thumbnail.png'; d.style.display='block'; d.textContent='Muat Turun Thumbnail (PNG, '+c.width+'×'+c.height+')';
+  st('Thumbnail siap.');
+}
+$('thbtn').onclick=makeThumb;
+async function loadThumbCfg(){
+  try{ const j=JSON.parse(await getText('thumb.json')); $('tt').value=(j.lines||[]).join('\n'); $('tsec').value=j.t!=null?j.t:''; }catch(e){}
 }
 
 $('load').onclick=loadAll; $('voice').onclick=makeVoice; $('play').onclick=play; $('rec').onclick=startRec;

@@ -167,7 +167,7 @@ function heart(c,x,y,s,a){
   c.beginPath();c.moveTo(0,28);c.bezierCurveTo(-60,-14,-34,-58,0,-26);c.bezierCurveTo(34,-58,60,-14,0,28);c.fill();c.restore();
 }
 function label(c,txt,x,y,a){
-  if(a<=0)return;
+  if(a<=0||window.VIDEO.hideLabels)return;
   c.save();c.globalAlpha=a;c.fillStyle='#e8e8ee';c.textAlign='center';
   c.font='600 34px "Courier New",monospace';if('letterSpacing' in c)c.letterSpacing='6px';
   c.fillText(txt,x,y);c.restore();
