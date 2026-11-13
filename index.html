@@ -73,7 +73,7 @@ const D = {tmodel:'gemini-2.5-flash-preview-tts', vname:'Kore', style:'Say in a 
 });
 const st=(m,e)=>{$('st').textContent=m;$('st').className='w'+(e?' err':'');$('st').id='st'};
 
-let V=null, ac=null, abuf=null, playing=false, recording=false, t0=0, raf=0, mr=null, chunks=[];
+let cues=null, V=null, ac=null, abuf=null, playing=false, recording=false, t0=0, raf=0, mr=null, chunks=[];
 
 // ---------- muat fail (relatif dahulu, kemudian GitHub) ----------
 async function getText(path){
@@ -101,6 +101,46 @@ function runCode(code){
       document.body.appendChild(s);
     }catch(e){viaFn()}
   });
+}
+
+
+// ---------- penyelarasan babak dengan ayat suara ----------
+function analyzeCues(){
+  cues=null;
+  if(!abuf||!V||!V.beats) return;
+  const lines=$('script').value.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+  if(lines.length!==V.beats.length-1) return;
+  const ch=abuf.getChannelData(0), win=Math.floor(abuf.sampleRate*.02), n=Math.floor(ch.length/win);
+  const rms=new Float32Array(n); let mx=0;
+  for(let i=0;i<n;i++){let s=0;for(let j=0;j<win;j++){const v=ch[i*win+j];s+=v*v}rms[i]=Math.sqrt(s/win);if(rms[i]>mx)mx=rms[i]}
+  const thr=mx*.04, runs=[]; let st=-1;
+  for(let i=0;i<=n;i++){
+    const q=i<n&&rms[i]<thr;
+    if(q&&st<0) st=i;
+    if(!q&&st>=0){ const l=(i-st)*.02; if(l>=.09) runs.push({c:(st+i)/2*.02,l}); st=-1 }
+  }
+  const total=abuf.duration, chars=lines.map(l=>l.length), tot=chars.reduce((a,b)=>a+b,0);
+  cues=[0]; let acc=0;
+  for(let k=0;k<lines.length-1;k++){
+    acc+=chars[k]; const exp=acc/tot*total; let best=null,bs=-1e9;
+    for(const r of runs){
+      const d=Math.abs(r.c-exp);
+      if(d<total*.12&&r.c>cues[cues.length-1]+.4){const sc=r.l-.2*d; if(sc>bs){bs=sc;best=r}}
+    }
+    cues.push(best?best.c:exp);
+  }
+  cues.push(total);
+}
+function sceneTime(el){
+  if(!V) return 0;
+  if(V.loop!==false) return el%V.duration;
+  let t=el;
+  if(abuf&&V.beats&&cues){
+    const B=V.beats,C=cues,e=C.length-1;
+    if(el>=C[e]) t=B[e]+(el-C[e]);
+    else{ let i=0; while(i<e-1&&el>=C[i+1]) i++; t=B[i]+(el-C[i])/(C[i+1]-C[i])*(B[i+1]-B[i]) }
+  } else if(abuf&&V.beats){ t=el*V.duration/(abuf.duration+.6) }
+  return Math.min(t,V.duration);
 }
 
 function frame(t){
@@ -141,7 +181,7 @@ async function makeVoice(){
     const a=ensureAC(); abuf=a.createBuffer(1,n,rate);
     const ch=abuf.getChannelData(0);
     for(let i=0;i<n;i++) ch[i]=dv.getInt16(i*2,true)/32768;
-    st('Suara siap: '+abuf.duration.toFixed(1)+' saat. Tekan Main atau Rakam & Simpan.');
+    analyzeCues(); st('Suara siap: '+abuf.duration.toFixed(1)+' saat'+(cues?', babak diselaraskan dengan ayat':'')+'. Tekan Main atau Rakam & Simpan.');
   }catch(e){st(e.message,1)}
   finally{$('voice').disabled=false}
 }
@@ -166,13 +206,13 @@ function tick(now){
     const dur=abuf?abuf.duration+0.6:V.duration;
     if(el>=dur){ finishRec(); return; }
   }
-  frame(V.loop===false?Math.min(el,V.duration):el%V.duration);
+  frame(sceneTime(el));
   raf=requestAnimationFrame(tick);
 }
 function play(){
   if(!V) return st('Muat adegan dahulu',1);
   if(playing&&!recording){stop();return}
-  ensureAC(); playing=true; t0=performance.now(); startAudio(null);
+  ensureAC(); analyzeCues(); playing=true; t0=performance.now(); startAudio(null);
   $('play').textContent='Henti'; raf=requestAnimationFrame(tick);
 }
 function pickMime(){
@@ -199,7 +239,7 @@ function startRec(){
     dl.textContent='Muat Turun Video ('+ext.toUpperCase()+', '+(blob.size/1048576).toFixed(1)+' MB'+(abuf?', dengan suara':', tanpa suara')+')';
     st('Siap direkod.'); $('rec').disabled=false; $('play').disabled=false; $('voice').disabled=false;
   };
-  recording=true; playing=true; t0=performance.now();
+  analyzeCues(); recording=true; playing=true; t0=performance.now();
   $('rec').disabled=true; $('play').disabled=true; $('voice').disabled=true;
   st('Merekod'+(abuf?' dengan suara':' tanpa suara (jana suara dahulu jika mahu)')+'...');
   mr.start(250); startAudio(dest); raf=requestAnimationFrame(tick);
