@@ -51,6 +51,8 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
     <div style="flex:1"><label>Model suara</label><input id="tmodel"></div>
     <div style="flex:1"><label>Nama suara</label><input id="vname"></div>
   </div>
+  <label>Gaya suara (arahan loghat dan nada)</label>
+  <input id="style">
   <label>Repo GitHub (jika dibuka di luar halaman repo)</label>
   <input id="repo">
   <label>Cabang</label>
@@ -64,8 +66,8 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d');
 const S = {g(k){try{return localStorage.getItem(k)||''}catch(e){return ''}},s(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
-const D = {tmodel:'gemini-3.8-flash-tts', vname:'Kore', repo:'zarouqs-rgb/jambatan', branch:'main'};
-['gkey','tmodel','vname','repo','branch'].forEach(k=>{
+const D = {tmodel:'gemini-2.5-flash-preview-tts', vname:'Kore', style:'Say in a clear, friendly narrator tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)', repo:'zarouqs-rgb/jambatan', branch:'main'};
+['gkey','tmodel','vname','style','repo','branch'].forEach(k=>{
   const el=$(k); el.value=S.g('sv_'+k)||D[k]||'';
   el.addEventListener('input',()=>S.s('sv_'+k,el.value.trim()));
 });
@@ -123,11 +125,11 @@ function ensureAC(){ if(!ac) ac=new (window.AudioContext||window.webkitAudioCont
 async function makeVoice(){
   const text=$('script').value.trim();
   if(!text) return st('Isi skrip suara dahulu',1);
-  const key=$('gkey').value.trim(), model=$('tmodel').value.trim()||D.tmodel, vn=$('vname').value.trim()||D.vname;
+  const key=$('gkey').value.trim(), model=$('tmodel').value.trim()||D.tmodel, vn=$('vname').value.trim()||D.vname, style=$('style').value.trim();
   $('voice').disabled=true;
   try{
     st('Menjana suara...');
-    const body={contents:[{parts:[{text}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:vn}}}}};
+    const body={contents:[{parts:[{text:(style?style+': ':'')+text}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:vn}}}}};
     const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const j=await r.json();
     if(!r.ok) throw new Error('Suara '+r.status+': '+((j.error&&j.error.message)||''));
