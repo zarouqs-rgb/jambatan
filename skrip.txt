@@ -1,0 +1,1 @@
+Anak tangga eskalator disambung pada rantai yang berputar tanpa henti. Motor memutarkan rantai itu melalui gear, dan pemegang tangan bergerak seiring dengan kelajuan anak tangga.

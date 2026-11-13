@@ -3,132 +3,214 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pemain Video</title>
+<title>Studio Video</title>
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#0f1419;color:#e6e9ee;font-family:system-ui,sans-serif;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
-#wrap{width:min(100%,420px)}
+.w{width:min(100%,440px)}
 canvas{width:100%;height:auto;border-radius:12px;background:#000;display:block}
-.row{display:flex;gap:8px;width:min(100%,420px)}
+.row{display:flex;gap:8px}
 button{flex:1;padding:14px 8px;border:0;border-radius:10px;font-size:15px;font-weight:600;background:#2a3440;color:#e6e9ee}
 button.p{background:#3b82f6;color:#fff}
 button:disabled{opacity:.5}
 #st{font-size:13px;color:#9fb0c2;min-height:18px;text-align:center}
 #st.err{color:#ff8a8a}
-video{width:min(100%,420px);border-radius:12px;background:#000}
-a.dl{display:none;width:min(100%,420px);text-align:center;padding:14px;border-radius:10px;background:#16a34a;color:#fff;font-weight:600;text-decoration:none}
+details{background:#1a2129;border:1px solid #2a3440;border-radius:12px;padding:10px}
+summary{cursor:pointer;font-weight:600}
+label{display:block;font-size:12px;color:#9fb0c2;margin:8px 0 3px}
+input,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #2f3b48;background:#10161c;color:#e6e9ee;font-size:15px;font-family:inherit}
+textarea{min-height:110px;resize:vertical}
+video{width:100%;border-radius:12px;background:#000}
+a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#16a34a;color:#fff;font-weight:600;text-decoration:none}
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="cv"></canvas></div>
-<div id="st"></div>
-<div class="row">
-  <button id="reload">Muat Semula Kod</button>
-  <button id="play" class="p">Main</button>
+<div class="w"><canvas id="cv"></canvas></div>
+<div class="w" id="st"></div>
+
+<div class="w row">
+  <button id="load">Muat Adegan &amp; Skrip</button>
+  <button id="voice" class="p">Jana Suara</button>
 </div>
-<div class="row"><button id="rec" class="p">Rakam &amp; Simpan</button></div>
-<video id="pv" controls playsinline style="display:none"></video>
-<a id="dl" class="dl">Muat Turun Video</a>
+<div class="w row">
+  <button id="play">Main</button>
+  <button id="rec" class="p">Rakam &amp; Simpan</button>
+</div>
+
+<details class="w">
+  <summary>Skrip suara</summary>
+  <label>Teks yang akan dibaca</label>
+  <textarea id="script"></textarea>
+</details>
+
+<details class="w">
+  <summary>Tetapan</summary>
+  <label>Kunci API Gemini (kosongkan jika dalam Canvas)</label>
+  <input id="gkey" type="password" autocomplete="off">
+  <div class="row">
+    <div style="flex:1"><label>Model suara</label><input id="tmodel"></div>
+    <div style="flex:1"><label>Nama suara</label><input id="vname"></div>
+  </div>
+  <label>Repo GitHub (jika dibuka di luar halaman repo)</label>
+  <input id="repo">
+  <label>Cabang</label>
+  <input id="branch">
+</details>
+
+<video id="pv" class="w" controls playsinline style="display:none"></video>
+<a id="dl" class="w dl"></a>
 
 <script>
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d');
-let V = null, playing = false, t0 = 0, recording = false, raf = 0;
-const st = (m, e) => { $('st').textContent = m; $('st').className = e ? 'err' : ''; };
+const S = {g(k){try{return localStorage.getItem(k)||''}catch(e){return ''}},s(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const D = {tmodel:'gemini-3.8-flash-tts', vname:'Kore', repo:'zarouqs-rgb/jambatan', branch:'main'};
+['gkey','tmodel','vname','repo','branch'].forEach(k=>{
+  const el=$(k); el.value=S.g('sv_'+k)||D[k]||'';
+  el.addEventListener('input',()=>S.s('sv_'+k,el.value.trim()));
+});
+const st=(m,e)=>{$('st').textContent=m;$('st').className='w'+(e?' err':'');$('st').id='st'};
 
-function loadCode() {
-  return new Promise((res, rej) => {
-    const old = document.getElementById('vjs');
-    if (old) old.remove();
-    window.VIDEO = null;
-    const s = document.createElement('script');
-    s.id = 'vjs';
-    s.src = 'video.js?t=' + Date.now();
-    s.onload = () => window.VIDEO ? res(window.VIDEO) : rej(new Error('video.js tidak menetapkan VIDEO'));
-    s.onerror = () => rej(new Error('Gagal memuatkan video.js'));
-    document.body.appendChild(s);
+let V=null, ac=null, abuf=null, playing=false, recording=false, t0=0, raf=0, mr=null, chunks=[];
+
+// ---------- muat fail (relatif dahulu, kemudian GitHub) ----------
+async function getText(path){
+  try{
+    const r=await fetch(path+'?t='+Date.now(),{cache:'no-store'});
+    if(r.ok){const t=await r.text(); if(t.trim() && !/^\s*<!doctype/i.test(t)) return t;}
+  }catch(e){}
+  const repo=$('repo').value.trim()||D.repo, br=$('branch').value.trim()||'main';
+  const u='https://api.github.com/repos/'+repo+'/contents/'+path+'?ref='+encodeURIComponent(br)+'&_='+Date.now();
+  const r=await fetch(u,{headers:{Accept:'application/vnd.github.raw+json'},cache:'no-store'});
+  if(!r.ok) throw new Error('GitHub '+r.status+' untuk '+path);
+  return await r.text();
+}
+
+function runCode(code){
+  return new Promise((res,rej)=>{
+    window.VIDEO=null;
+    const old=document.getElementById('vjs'); if(old) old.remove();
+    const viaFn=()=>{try{(new Function(code))(); window.VIDEO?res(window.VIDEO):rej(new Error('Kod adegan tidak menetapkan VIDEO'))}catch(e){rej(e)}};
+    try{
+      const url=URL.createObjectURL(new Blob([code],{type:'text/javascript'}));
+      const s=document.createElement('script'); s.id='vjs'; s.src=url;
+      s.onload=()=>window.VIDEO?res(window.VIDEO):viaFn();
+      s.onerror=viaFn;
+      document.body.appendChild(s);
+    }catch(e){viaFn()}
   });
 }
 
-function frame(t) {
-  try { V.draw(ctx, t, cv.width, cv.height); }
-  catch (e) { st('Ralat kod video: ' + e.message, 1); playing = false; }
+function frame(t){
+  try{V.draw(ctx,t,cv.width,cv.height)}catch(e){st('Ralat adegan: '+e.message,1);playing=false}
 }
 
-function tick(now) {
-  if (!playing) return;
-  const el = (now - t0) / 1000;
-  if (recording) {
-    if (el >= V.duration) { finishRec(); return; }
-    frame(el);
-  } else {
-    frame(el % V.duration);
+async function loadAll(){
+  try{
+    st('Memuatkan adegan dan skrip...');
+    stop();
+    V=await runCode(await getText('video.js'));
+    cv.width=V.width; cv.height=V.height; frame(0);
+    try{ $('script').value=(await getText('skrip.txt')).trim(); }catch(e){}
+    st('Siap dimuatkan: '+V.width+'×'+V.height+', adegan '+V.duration+' saat (berulang).');
+  }catch(e){st(e.message,1)}
+}
+
+// ---------- suara ----------
+function b64ToBytes(b){const s=atob(b),n=s.length,a=new Uint8Array(n);for(let i=0;i<n;i++)a[i]=s.charCodeAt(i);return a}
+function ensureAC(){ if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); return ac }
+
+async function makeVoice(){
+  const text=$('script').value.trim();
+  if(!text) return st('Isi skrip suara dahulu',1);
+  const key=$('gkey').value.trim(), model=$('tmodel').value.trim()||D.tmodel, vn=$('vname').value.trim()||D.vname;
+  $('voice').disabled=true;
+  try{
+    st('Menjana suara...');
+    const body={contents:[{parts:[{text}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:vn}}}}};
+    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json();
+    if(!r.ok) throw new Error('Suara '+r.status+': '+((j.error&&j.error.message)||''));
+    const part=(((j.candidates||[])[0]||{}).content?.parts||[]).find(p=>p.inlineData);
+    if(!part) throw new Error('Tiada audio dalam jawapan');
+    const rate=+((/rate=(\d+)/.exec(part.inlineData.mimeType||'')||[])[1])||24000;
+    const bytes=b64ToBytes(part.inlineData.data);
+    const n=Math.floor(bytes.length/2), dv=new DataView(bytes.buffer);
+    const a=ensureAC(); abuf=a.createBuffer(1,n,rate);
+    const ch=abuf.getChannelData(0);
+    for(let i=0;i<n;i++) ch[i]=dv.getInt16(i*2,true)/32768;
+    st('Suara siap: '+abuf.duration.toFixed(1)+' saat. Tekan Main atau Rakam & Simpan.');
+  }catch(e){st(e.message,1)}
+  finally{$('voice').disabled=false}
+}
+
+// ---------- main / rakam ----------
+let src=null;
+function startAudio(dest){
+  if(!abuf) return;
+  const a=ensureAC(); src=a.createBufferSource(); src.buffer=abuf;
+  if(dest) src.connect(dest); else src.connect(a.destination);
+  src.start();
+}
+function stop(){
+  playing=false; recording=false; cancelAnimationFrame(raf);
+  try{src&&src.stop()}catch(e){} src=null;
+  $('play').textContent='Main';
+}
+function tick(now){
+  if(!playing) return;
+  const el=(now-t0)/1000;
+  if(recording){
+    const dur=abuf?abuf.duration+0.6:V.duration;
+    if(el>=dur){ finishRec(); return; }
   }
-  raf = requestAnimationFrame(tick);
+  frame(el%V.duration);
+  raf=requestAnimationFrame(tick);
 }
-
-async function init() {
-  try {
-    st('Memuatkan kod video...');
-    playing = false; cancelAnimationFrame(raf);
-    V = await loadCode();
-    cv.width = V.width; cv.height = V.height;
-    frame(0);
-    st('Kod dimuatkan. ' + V.width + '×' + V.height + ', ' + V.duration + ' saat.');
-  } catch (e) { st(e.message, 1); }
+function play(){
+  if(!V) return st('Muat adegan dahulu',1);
+  if(playing&&!recording){stop();return}
+  ensureAC(); playing=true; t0=performance.now(); startAudio(null);
+  $('play').textContent='Henti'; raf=requestAnimationFrame(tick);
 }
-
-function play() {
-  if (!V) return;
-  if (playing && !recording) { playing = false; $('play').textContent = 'Main'; return; }
-  playing = true; t0 = performance.now();
-  $('play').textContent = 'Henti';
-  raf = requestAnimationFrame(tick);
+function pickMime(){
+  const c=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  return c.find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||'';
 }
-
-let mr, chunks = [];
-function pickMime() {
-  const c = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
-  return c.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
-}
-
-function startRec() {
-  if (!V || recording) return;
-  if (!window.MediaRecorder) return st('Pelayar ini tidak menyokong rakaman', 1);
-  const mime = pickMime();
-  const stream = cv.captureStream(V.fps || 30);
-  mr = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8e6 } : { videoBitsPerSecond: 8e6 });
-  chunks = [];
-  mr.ondataavailable = e => e.data.size && chunks.push(e.data);
-  mr.onstop = () => {
-    const type = (mr.mimeType || mime || 'video/webm').split(';')[0];
-    const blob = new Blob(chunks, { type });
-    const url = URL.createObjectURL(blob);
-    const ext = type.includes('mp4') ? 'mp4' : 'webm';
-    const pv = $('pv'); pv.src = url; pv.style.display = 'block';
-    const dl = $('dl'); dl.href = url; dl.download = 'video.' + ext; dl.style.display = 'block';
-    dl.textContent = 'Muat Turun Video (' + ext.toUpperCase() + ', ' + (blob.size / 1048576).toFixed(1) + ' MB)';
-    st('Siap direkod.');
-    $('rec').disabled = false; $('play').disabled = false;
+function startRec(){
+  if(!V) return st('Muat adegan dahulu',1);
+  if(recording) return;
+  if(!window.MediaRecorder) return st('Pelayar tidak menyokong rakaman',1);
+  stop();
+  const a=ensureAC(), dest=a.createMediaStreamDestination();
+  const vs=cv.captureStream(V.fps||30);
+  const tracks=[...vs.getVideoTracks()]; if(abuf) tracks.push(...dest.stream.getAudioTracks());
+  const mime=pickMime();
+  mr=new MediaRecorder(new MediaStream(tracks), mime?{mimeType:mime,videoBitsPerSecond:8e6,audioBitsPerSecond:128000}:{videoBitsPerSecond:8e6});
+  chunks=[];
+  mr.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+  mr.onstop=()=>{
+    const type=(mr.mimeType||mime||'video/webm').split(';')[0];
+    const blob=new Blob(chunks,{type}), url=URL.createObjectURL(blob), ext=type.includes('mp4')?'mp4':'webm';
+    const pv=$('pv'); pv.src=url; pv.style.display='block';
+    const dl=$('dl'); dl.href=url; dl.download='video.'+ext; dl.style.display='block';
+    dl.textContent='Muat Turun Video ('+ext.toUpperCase()+', '+(blob.size/1048576).toFixed(1)+' MB'+(abuf?', dengan suara':', tanpa suara')+')';
+    st('Siap direkod.'); $('rec').disabled=false; $('play').disabled=false; $('voice').disabled=false;
   };
-  recording = true; playing = true; t0 = performance.now();
-  $('rec').disabled = true; $('play').disabled = true;
-  st('Merekod ' + V.duration + ' saat...');
-  mr.start(250);
-  raf = requestAnimationFrame(tick);
+  recording=true; playing=true; t0=performance.now();
+  $('rec').disabled=true; $('play').disabled=true; $('voice').disabled=true;
+  st('Merekod'+(abuf?' dengan suara':' tanpa suara (jana suara dahulu jika mahu)')+'...');
+  mr.start(250); startAudio(dest); raf=requestAnimationFrame(tick);
+}
+function finishRec(){
+  frame((abuf?abuf.duration:V.duration)%V.duration);
+  recording=false; playing=false; $('play').textContent='Main';
+  try{src&&src.stop()}catch(e){} src=null;
+  setTimeout(()=>mr.stop(),200);
 }
 
-function finishRec() {
-  frame(V.duration - 0.001);
-  recording = false; playing = false;
-  $('play').textContent = 'Main';
-  setTimeout(() => mr.stop(), 150);
-}
-
-$('reload').onclick = init;
-$('play').onclick = play;
-$('rec').onclick = startRec;
-init();
+$('load').onclick=loadAll; $('voice').onclick=makeVoice; $('play').onclick=play; $('rec').onclick=startRec;
+loadAll();
 </script>
 </body>
 </html>
