@@ -166,8 +166,7 @@ const PAXM=PALS.map(p=>{const t=new Geo();cyl(t,[0,0.88,0],[0,1.40,0],0.14,p.sh,
   const ad=new Geo();cyl(ad,[0,0,0],[0,-0.27,0],0.046,p.sh,0,8);cyl(ad,[0,-0.27,0],[0,-0.54,0],0.04,p.sk,0,8);sphere(ad,[0,-0.57,0],0.048,p.sk,0);
   const ah=[-1,1].map(sg=>{const h=new Geo();cyl(h,[0,1.37,sg*0.2],[0.1,1.13,sg*0.28],0.046,p.sh,0,8);cyl(h,[0.1,1.13,sg*0.28],[0.2,1.0,sg*0.37],0.04,p.sk,0,8);sphere(h,[0.2,0.99,sg*0.37],0.05,p.sk,0);return h;});
   return {t,l,ad,ah};});
-const PAX=[];
-for(let i=0;i<NST;i++){PAX.push({i,z:0.24,c:(i*5)%PALS.length});PAX.push({i,z:-0.24,c:(i*5+3)%PALS.length});}
+const PAX=[];   // diisi selepas masa berhenti diketahui (lihat jalan cerita)
 
 /* ---- pemegang tangan, kaca, badan, kulit ---- */
 const gRail=new Geo();
@@ -319,6 +318,9 @@ const V=0.5,TR0=1.2;
 const TST=BEATS[2]+.2,TDC=1.0;                         // eskalator berhenti
 const T_FAIL=BEATS[2]+2.2,T_WORN=BEATS[3]+.3,T_SNAP=BEATS[3]+2.1,T_SLIDE=BEATS[4];
 const TRS=TR0+V*TST+V*TDC/2;
+const qOf=(tr,i)=>(((tr+i*PE+7)%LTOT)+LTOT)%LTOT-7;
+// Hanya orang yang berada atas anak tangga condong ketika eskalator berhenti. Tiada orang baru masuk dari atas atau bawah.
+for(let i=0;i<NST;i++){const q=qOf(TRS,i),qa=qOf(TR0,i);if((q>0.6&&q<SC-0.6)||(qa>0.6&&qa<SC-0.6)){PAX.push({i,z:0.24,c:(i*5)%PALS.length});PAX.push({i,z:-0.24,c:(i*5+3)%PALS.length});}}
 function travelAt(t){
   if(t<TST)return TR0+V*t;
   if(t<TST+TDC){const p=(t-TST)/TDC;return TR0+V*TST+V*TDC*(p-p*p/2);}
@@ -329,7 +331,7 @@ function travelAt(t){
 /* syot kamera (sasaran, yaw, pitch, jarak) */
 const SH_FULL={t:[XE*0.5,(r+YE)/2+0.2,0],yaw:-0.88,pitch:0.28,dist:15.5};
 const SH_PIT={t:[XE+0.95,YE-0.55,0.25],yaw:-0.62,pitch:0.30,dist:4.3};
-const SH_END={t:[XE*0.5,(r+YE)/2+0.1,0],yaw:-0.78,pitch:0.3,dist:15};
+const SH_END={t:[-0.4,r+0.7,0],yaw:-0.3,pitch:0.42,dist:10.5};
 function lerpShot(a,b,k){return {t:[0,1,2].map(i=>a.t[i]+(b.t[i]-a.t[i])*k),yaw:a.yaw+(b.yaw-a.yaw)*k,pitch:a.pitch+(b.pitch-a.pitch)*k,dist:a.dist+(b.dist-a.dist)*k};}
 function shotAt(t){
   let s=lerpShot(SH_FULL,SH_PIT,seg(t,BEATS[1]-.2,BEATS[1]+1.6));
@@ -338,8 +340,12 @@ function shotAt(t){
   return s;
 }
 function drawPax(travel,fall){
-  for(const pi of PAX){const q0=(((travel+pi.i*PE+7)%LTOT)+LTOT)%LTOT-7;if(q0<-3.2||q0>SC+3.2)continue;
+  for(const pi of PAX){const q0=qOf(travel,pi.i);if(q0<-3.2||q0>SC+3.2)continue;
+    if(fall>0&&qOf(TRS,pi.i)>SC-0.6)continue;            // yang dah keluar di atas tak masuk semula
     let x,y,onStep;
+    if(fall>0&&q0<0.55){                                   // terhumban di plat sikat bawah, bertimbun dan terbaring
+      const k=(0.55-q0)/PE,x0=0.1-min(k,5)*0.24-(pi.z>0?0:0.12);
+      const M=mPax[pi.c];bind(M.t);inst(M.t,x0,yFloorB+0.12,pi.z,1.35);bind(M.l);inst(M.l,x0+0.85,yFloorB+0.2,pi.z,1.45);continue;}
     if(q0<0.55){x=q0-0.2;y=yFloorB;onStep=0;}else if(q0>SC-0.55){x=XE+(q0-SC)-0.2;y=yFloorT;onStep=0;}else{const p=at(q0);x=p[0]-0.2;y=p[1]+TREAD;onStep=1;}
     const M=mPax[pi.c],z=pi.z,sg=z>0?1:0;
     const edge=onStep?1:max(0,1-min(Math.abs(q0-0.55),Math.abs(q0-(SC-0.55)))/0.5),w=onStep?0:(1-edge),sw=0.5*w*sin(q0*2*PI/0.75);
