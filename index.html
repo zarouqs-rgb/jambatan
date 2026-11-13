@@ -114,7 +114,7 @@ async function loadAll(){
     V=await runCode(await getText('video.js'));
     cv.width=V.width; cv.height=V.height; frame(0);
     try{ $('script').value=(await getText('skrip.txt')).trim(); }catch(e){}
-    st('Siap dimuatkan: '+V.width+'×'+V.height+', adegan '+V.duration+' saat (berulang).');
+    st('Siap dimuatkan: '+V.width+'×'+V.height+', adegan '+V.duration+' saat'+(V.loop===false?'.':' (berulang).'));
   }catch(e){st(e.message,1)}
 }
 
@@ -166,7 +166,7 @@ function tick(now){
     const dur=abuf?abuf.duration+0.6:V.duration;
     if(el>=dur){ finishRec(); return; }
   }
-  frame(el%V.duration);
+  frame(V.loop===false?Math.min(el,V.duration):el%V.duration);
   raf=requestAnimationFrame(tick);
 }
 function play(){
@@ -205,7 +205,7 @@ function startRec(){
   mr.start(250); startAudio(dest); raf=requestAnimationFrame(tick);
 }
 function finishRec(){
-  frame((abuf?abuf.duration:V.duration)%V.duration);
+  frame(V.loop===false?V.duration:(abuf?abuf.duration:V.duration)%V.duration);
   recording=false; playing=false; $('play').textContent='Main';
   try{src&&src.stop()}catch(e){} src=null;
   setTimeout(()=>mr.stop(),200);
