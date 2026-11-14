@@ -104,6 +104,17 @@ async function getText(path){
   return await r.text();
 }
 
+async function getBin(path){
+  const repo=$('repo').value.trim()||D.repo, br=$('branch').value.trim()||'main';
+  const urls=[path+'?t='+Date.now(),'https://raw.githubusercontent.com/'+repo+'/'+br+'/'+path+'?t='+Date.now(),'https://cdn.jsdelivr.net/gh/'+repo+'@'+br+'/'+path];
+  for(const u of urls){try{const r=await fetch(u,{cache:'no-store'});if(r.ok){const ct=r.headers.get('content-type')||'';if(!/text\/html/.test(ct))return await r.arrayBuffer();}}catch(e){}}
+  throw new Error('Gagal muat '+path);
+}
+async function getLib(path){ // muat pustaka JS sekali sahaja
+  window.__libs=window.__libs||{};if(window.__libs[path])return;
+  const code=new TextDecoder().decode(await getBin(path));(0,eval)(code);window.__libs[path]=1;
+}
+window.getBin=getBin;window.getLib=getLib;window.getTextFile=p=>getText(p);
 function runCode(code){
   return new Promise((res,rej)=>{
     window.VIDEO=null;
@@ -181,6 +192,7 @@ async function loadAll(){
     st('Memuatkan adegan dan skrip...');
     stop();
     V=await runCode(await getText('video.js'));
+    if(V.ready){st('Memuatkan model 3D (kali pertama mungkin ambil masa)...');await V.ready(st);}
     cv.width=V.width; cv.height=V.height; frame(0);
     try{ $('script').value=(await getText('skrip.txt')).trim(); }catch(e){}
     await loadThumbCfg();
