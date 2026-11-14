@@ -55,7 +55,7 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
   <textarea id="vtext" style="min-height:160px" placeholder="00:00 Hujan turun lebat...&#10;00:04 Ramai yang lalu...&#10;00:08.5 Seorang budak muda..."></textarea>
   <div class="row" style="margin-top:8px"><button id="vpaste">📋 Tampal</button><button id="vgit">Muat suara.txt (GitHub)</button></div>
   <label>Jika suara lebih panjang daripada ruang masa</label>
-  <select id="vfit"><option value="fast">Percepatkan sedikit (maks 1.3x), lebih dari itu anjak</option><option value="push">Anjak baris seterusnya</option><option value="over">Biar bertindih</option></select>
+  <select id="vfit"><option value="fast">Percepatkan sedikit tanpa ubah nada (maks 1.3x), lebih dari itu anjak</option><option value="push">Anjak baris seterusnya</option><option value="over">Biar bertindih</option></select>
   <div class="row" style="margin-top:8px"><button id="vgen" class="p">Jana Suara Ikut Masa</button><button id="vplay">Dengar</button></div>
   <a id="vdl" class="dl" style="margin-top:8px"></a>
 </details>
@@ -277,10 +277,41 @@ function trimSil(d,rate){
   a=Math.max(0,a-Math.floor(rate*.03)); b=Math.min(d.length-1,b+Math.floor(rate*.08));
   return d.subarray(a,b+1);
 }
-function resample(d,f){ // f>1 = lebih laju
-  const n=Math.floor(d.length/f), o=new Float32Array(n);
-  for(let i=0;i<n;i++){const x=i*f,k=Math.floor(x),t=x-k;o[i]=d[k]*(1-t)+(d[k+1]||0)*t}
-  return o;
+function resample(d,f){ // f>1 = lebih laju, nada KEKAL (WSOLA)
+  const rate=24000, W=Math.floor(rate*.03), H=W>>1, tol=Math.floor(rate*.008);
+  const n=Math.floor(d.length/f), o=new Float32Array(n+W), wsum=new Float32Array(n+W), win=new Float32Array(W);
+  for(let i=0;i<W;i++) win[i]=.5-.5*Math.cos(2*Math.PI*i/W);
+  let prev=0;
+  for(let out=0;out<n;out+=H){
+    const nom=Math.floor(out*f); let best=nom;
+    if(out>0){ let bs=-1e9; const ref=prev+H;
+      for(let k=-tol;k<=tol;k+=2){ const c=nom+k; if(c<0||c+W>=d.length) continue; let sc=0;
+        for(let j=0;j<W;j+=4) sc+=d[c+j]*(d[ref+j]||0); if(sc>bs){bs=sc;best=c} } }
+    if(best+W>=d.length) break;
+    for(let j=0;j<W;j++){ o[out+j]+=d[best+j]*win[j]; wsum[out+j]+=win[j]; }
+    prev=best;
+  }
+  for(let i=0;i<n;i++) if(wsum[i]>1e-3) o[i]/=wsum[i];
+  return o.subarray(0,n);
+}
+function splitBySilence(d,rate,texts){ // cari sempadan ayat dalam satu rakaman penuh
+  const win=Math.floor(rate*.02), n=Math.floor(d.length/win), rms=new Float32Array(n); let mx=0;
+  for(let i=0;i<n;i++){let s=0;for(let j=0;j<win;j++){const v=d[i*win+j];s+=v*v}rms[i]=Math.sqrt(s/win);if(rms[i]>mx)mx=rms[i]}
+  const thr=mx*.04, runs=[]; let st0=-1, first=0, last=n;
+  while(first<n&&rms[first]<thr) first++;
+  while(last>first&&rms[last-1]<thr) last--;
+  for(let i=first;i<=last;i++){ const q=i<last&&rms[i]<thr;
+    if(q&&st0<0) st0=i; if(!q&&st0>=0){ const l=(i-st0)*.02; if(l>=.12) runs.push({a:st0*.02,e:i*.02,c:(st0+i)/2*.02,l}); st0=-1 } }
+  const t0=first*.02, t1=last*.02, span=t1-t0, chars=texts.map(t=>t.length), tot=chars.reduce((x,y)=>x+y,0);
+  const b=[t0]; let acc=0;
+  for(let k=0;k<texts.length-1;k++){
+    acc+=chars[k]; const exp=t0+acc/tot*span; let best=null,bs=-1e9;
+    for(const r of runs){ const dd=Math.abs(r.c-exp);
+      if(dd<span*.15&&r.c>b[b.length-1]+.3){const sc=r.l*2-dd/span*3; if(sc>bs){bs=sc;best=r}} }
+    b.push(best?best.c:exp);
+  }
+  b.push(t1);
+  return texts.map((_,i)=>{ const a=Math.max(0,Math.floor(b[i]*rate)), e=Math.min(d.length,Math.ceil(b[i+1]*rate)); return trimSil(d.subarray(a,e),rate); });
 }
 function toWav(buf){
   const d=buf.getChannelData(0), rate=buf.sampleRate, n=d.length, ab=new ArrayBuffer(44+n*2), v=new DataView(ab);
@@ -298,11 +329,9 @@ async function makeStamped(){
   const mode=$('vfit').value;
   $('vgen').disabled=true; $('vdl').style.display='none';
   try{
-    const clips=[]; let rate=24000;
-    for(let i=0;i<segs.length;i++){
-      st('Menjana suara '+(i+1)+'/'+segs.length+'...');
-      const r=await tts(segs[i].text); rate=r.rate; clips.push(trimSil(r.d,r.rate));
-    }
+    st('Menjana suara (sekali jalan supaya nada sekata)...');
+    const full=await tts(segs.map(g=>g.text.replace(/\s+/g,' ').replace(/([^.!?…])$/,'$1.')).join('\n\n'));
+    const rate=full.rate, clips=segs.length>1?splitBySilence(full.d,rate,segs.map(g=>g.text)):[trimSil(full.d,rate)];
     const notes=[]; let cursor=0; const place=[];
     for(let i=0;i<segs.length;i++){
       let c=clips[i], start=segs[i].s;
