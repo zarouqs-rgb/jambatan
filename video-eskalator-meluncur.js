@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const W=1080,H=1920,D=24.2;
-const BEATS=[.3,5.5,10.2,13.9,17.8,21.1];
+const BEATS=[.3,5.5,10.2,13.9,17.8,21.1,23.6];
 const cv=document.createElement('canvas');cv.width=W;cv.height=H;
 const gl=cv.getContext('webgl',{antialias:true,alpha:false,preserveDrawingBuffer:true});
 const {sin,cos,PI,atan2,hypot,round,max,min,acos,tan}=Math;

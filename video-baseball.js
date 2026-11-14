@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 const W=1080,H=1920,D=19.6;
-const BEATS=[.3,4.4,8.0,11.4,13.2,15.0];
+const BEATS=[.3,4.4,8.0,11.4,13.2,15.0,19.0]; // 6 ayat + penanda tamat
 const cv=document.createElement('canvas');cv.width=W;cv.height=H;
 const gl=cv.getContext('webgl',{antialias:true,alpha:false,preserveDrawingBuffer:true});
 const {sin,cos,PI,atan2,hypot,max,min,sqrt,tan,abs}=Math;

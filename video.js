@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 const W=1080,H=1920,D=20.4;
-const BEATS=[.3,4.4,7.4,9.8,13.2,16.4];
+const BEATS=[.3,4.4,7.4,9.8,13.2,16.4,19.8]; // 6 ayat = 6 penanda mula + 1 penanda tamat
 const {sin,cos,PI,max,min,abs}=Math;
 const cl=(x,a=0,b=1)=>max(a,min(b,x)),sm=x=>{x=cl(x);return x*x*(3-2*x)},seg=(t,a,b)=>sm((t-a)/(b-a));
 const win=(t,a,b,f=.3)=>seg(t,a,a+f)*(1-seg(t,b-f,b));
