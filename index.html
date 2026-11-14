@@ -49,6 +49,16 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
   <textarea id="script"></textarea>
 </details>
 
+<details class="w" id="vow">
+  <summary>Suara sahaja (teks + stempel masa)</summary>
+  <label>Tampal teks. Setiap baris mula dengan masa, contoh 00:00 atau 00:05.5 atau 00:00 - 00:04</label>
+  <textarea id="vtext" style="min-height:160px" placeholder="00:00 Hujan turun lebat...&#10;00:04 Ramai yang lalu...&#10;00:08.5 Seorang budak muda..."></textarea>
+  <label>Jika suara lebih panjang daripada ruang masa</label>
+  <select id="vfit"><option value="fast">Percepatkan sedikit (maks 1.3x), lebih dari itu anjak</option><option value="push">Anjak baris seterusnya</option><option value="over">Biar bertindih</option></select>
+  <div class="row" style="margin-top:8px"><button id="vgen" class="p">Jana Suara Ikut Masa</button><button id="vplay">Dengar</button></div>
+  <a id="vdl" class="dl" style="margin-top:8px"></a>
+</details>
+
 <details class="w">
   <summary>Tetapan</summary>
   <label>Kunci API Gemini (kosongkan jika dalam Canvas)</label>
@@ -89,7 +99,7 @@ const D = {tmodel:'gemini-2.5-flash-preview-tts', vname:'Kore', style:'Say in a 
 });
 const st=(m,e)=>{$('st').textContent=m;$('st').className='w'+(e?' err':'');$('st').id='st'};
 
-let cues=null, cueLines=[], V=null, ac=null, abuf=null, playing=false, recording=false, t0=0, raf=0, mr=null, chunks=[];
+let vBuf=null, vCues=null, vLines=[], cues=null, cueLines=[], V=null, ac=null, abuf=null, playing=false, recording=false, t0=0, raf=0, mr=null, chunks=[];
 
 // ---------- muat fail (relatif dahulu, kemudian GitHub) ----------
 async function getText(path){
@@ -134,6 +144,8 @@ function runCode(code){
 // ---------- stempel masa ayat & penyelarasan babak ----------
 const fmt=t=>{const m=Math.floor(t/60),s=t-m*60;return String(m).padStart(2,'0')+':'+(s<10?'0':'')+s.toFixed(1)};
 function analyzeCues(){
+  if(abuf&&abuf===vBuf&&vCues){ cues=vCues.slice(); cueLines=vLines.slice();
+    $('ts').value=cueLines.map((l,i)=>fmt(cues[i])+'  '+l).join('\n')+'\n'+fmt(cues[cues.length-1])+'  (tamat suara)'; $('tsw').style.display='block'; return; }
   cues=null; cueLines=[];
   if(!abuf) return;
   const lines=$('script').value.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
@@ -204,29 +216,127 @@ async function loadAll(){
 function b64ToBytes(b){const s=atob(b),n=s.length,a=new Uint8Array(n);for(let i=0;i<n;i++)a[i]=s.charCodeAt(i);return a}
 function ensureAC(){ if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); return ac }
 
+async function tts(text){
+  const key=$('gkey').value.trim(), model=$('tmodel').value.trim()||D.tmodel, vn=$('vname').value.trim()||D.vname, style=$('style').value.trim();
+  const body={contents:[{parts:[{text:(style?style+': ':'')+text}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:vn}}}}};
+  for(let tryN=0;;tryN++){
+    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){
+      if((r.status===429||r.status>=500)&&tryN<4){ st('Had kadar API, cuba semula dalam '+(15*(tryN+1))+' saat...'); await new Promise(z=>setTimeout(z,15000*(tryN+1))); continue; }
+      throw new Error('Suara '+r.status+': '+((j.error&&j.error.message)||''));
+    }
+    const part=(((j.candidates||[])[0]||{}).content?.parts||[]).find(p=>p.inlineData);
+    if(!part){ if(tryN<2) continue; throw new Error('Tiada audio dalam jawapan'); }
+    const rate=+((/rate=(\d+)/.exec(part.inlineData.mimeType||'')||[])[1])||24000;
+    const bytes=b64ToBytes(part.inlineData.data);
+    const n=Math.floor(bytes.length/2), dv=new DataView(bytes.buffer), d=new Float32Array(n);
+    for(let i=0;i<n;i++) d[i]=dv.getInt16(i*2,true)/32768;
+    return {d,rate};
+  }
+}
+
 async function makeVoice(){
   const text=$('script').value.trim();
   if(!text) return st('Isi skrip suara dahulu',1);
-  const key=$('gkey').value.trim(), model=$('tmodel').value.trim()||D.tmodel, vn=$('vname').value.trim()||D.vname, style=$('style').value.trim();
   $('voice').disabled=true;
   try{
     st('Menjana suara...');
-    const body={contents:[{parts:[{text:(style?style+': ':'')+text}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:vn}}}}};
-    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const j=await r.json();
-    if(!r.ok) throw new Error('Suara '+r.status+': '+((j.error&&j.error.message)||''));
-    const part=(((j.candidates||[])[0]||{}).content?.parts||[]).find(p=>p.inlineData);
-    if(!part) throw new Error('Tiada audio dalam jawapan');
-    const rate=+((/rate=(\d+)/.exec(part.inlineData.mimeType||'')||[])[1])||24000;
-    const bytes=b64ToBytes(part.inlineData.data);
-    const n=Math.floor(bytes.length/2), dv=new DataView(bytes.buffer);
-    const a=ensureAC(); abuf=a.createBuffer(1,n,rate);
-    const ch=abuf.getChannelData(0);
-    for(let i=0;i<n;i++) ch[i]=dv.getInt16(i*2,true)/32768;
+    const {d,rate}=await tts(text);
+    const a=ensureAC(); abuf=a.createBuffer(1,d.length,rate); abuf.getChannelData(0).set(d);
     analyzeCues(); st('Suara siap: '+abuf.duration.toFixed(1)+' saat'+(V&&V.beats&&cues&&V.beats.length===cues.length?', babak mengikut stempel masa':'')+'. Tekan Main atau Rakam & Simpan.');
   }catch(e){st(e.message,1)}
   finally{$('voice').disabled=false}
 }
+
+// ---------- suara sahaja ikut stempel masa ----------
+function parseTime(x){
+  x=x.replace(',','.'); const p=x.split(':').map(Number);
+  if(p.some(isNaN)) return NaN;
+  return p.length===3?p[0]*3600+p[1]*60+p[2]:p.length===2?p[0]*60+p[1]:p[0];
+}
+function parseStamped(raw){
+  const T='(\\d{1,2}:\\d{1,2}(?::\\d{1,2})?(?:[.,]\\d+)?|\\d+(?:\\.\\d+)?s)';
+  const re=new RegExp('^\\s*[\\[(]?'+T+'[\\])]?\\s*(?:(?:-->|[-–—~>]|hingga|sampai)\\s*[\\[(]?'+T+'[\\])]?)?\\s*[:|.\\-–—]?\\s*(.*)$','i');
+  const segs=[];
+  for(const line of raw.split(/\r?\n/)){
+    const l=line.trim(); if(!l||/^\d+$/.test(l)) continue;
+    const m=re.exec(l);
+    if(m){ const s=parseTime(m[1].replace(/s$/i,'')), e=m[2]?parseTime(m[2].replace(/s$/i,'')):null;
+      if(!isNaN(s)){ segs.push({s,e:(e!=null&&!isNaN(e)&&e>s)?e:null,text:m[3].trim()}); continue; } }
+    if(segs.length) segs[segs.length-1].text+=(segs[segs.length-1].text?' ':'')+l;
+    else segs.push({s:0,e:null,text:l});
+  }
+  return segs.filter(g=>g.text);
+}
+function trimSil(d,rate){
+  const th=0.012; let a=0,b=d.length-1;
+  while(a<b&&Math.abs(d[a])<th) a++;
+  while(b>a&&Math.abs(d[b])<th) b--;
+  a=Math.max(0,a-Math.floor(rate*.03)); b=Math.min(d.length-1,b+Math.floor(rate*.08));
+  return d.subarray(a,b+1);
+}
+function resample(d,f){ // f>1 = lebih laju
+  const n=Math.floor(d.length/f), o=new Float32Array(n);
+  for(let i=0;i<n;i++){const x=i*f,k=Math.floor(x),t=x-k;o[i]=d[k]*(1-t)+(d[k+1]||0)*t}
+  return o;
+}
+function toWav(buf){
+  const d=buf.getChannelData(0), rate=buf.sampleRate, n=d.length, ab=new ArrayBuffer(44+n*2), v=new DataView(ab);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+  w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,rate,true);v.setUint32(28,rate*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++){const x=Math.max(-1,Math.min(1,d[i]));v.setInt16(44+i*2,x<0?x*32768:x*32767,true)}
+  return new Blob([ab],{type:'audio/wav'});
+}
+let vSrc=null;
+async function makeStamped(){
+  const segs=parseStamped($('vtext').value);
+  if(!segs.length) return st('Tampal teks dengan stempel masa dahulu',1);
+  segs.sort((a,b)=>a.s-b.s);
+  const mode=$('vfit').value;
+  $('vgen').disabled=true; $('vdl').style.display='none';
+  try{
+    const clips=[]; let rate=24000;
+    for(let i=0;i<segs.length;i++){
+      st('Menjana suara '+(i+1)+'/'+segs.length+'...');
+      const r=await tts(segs[i].text); rate=r.rate; clips.push(trimSil(r.d,r.rate));
+    }
+    const notes=[]; let cursor=0; const place=[];
+    for(let i=0;i<segs.length;i++){
+      let c=clips[i], start=segs[i].s;
+      if(mode!=='over'&&start<cursor){ notes.push('baris '+(i+1)+' dianjak +'+(cursor-start).toFixed(1)+'s'); start=cursor; }
+      const limit=segs[i].e!=null?segs[i].e:(i+1<segs.length?segs[i+1].s:Infinity);
+      const room=limit-start-0.05, len=c.length/rate;
+      if(mode==='fast'&&room>0&&len>room){
+        const f=Math.min(1.3,len/room); c=resample(c,f);
+        notes.push('baris '+(i+1)+' dipercepat '+f.toFixed(2)+'x'+(len/f>room+0.01?' (masih lebih '+(len/f-room).toFixed(1)+'s)':''));
+      } else if(mode!=='fast'&&len>room&&room>0) notes.push('baris '+(i+1)+' lebih '+(len-room).toFixed(1)+'s');
+      place.push({c,start}); cursor=start+c.length/rate+0.1;
+    }
+    const lastEnd=Math.max(...place.map(p=>p.start+p.c.length/rate)), lastE=segs[segs.length-1].e||0;
+    const total=Math.ceil((Math.max(lastEnd,lastE)+0.4)*rate);
+    const a=ensureAC(); vBuf=a.createBuffer(1,total,rate); const out=vBuf.getChannelData(0);
+    for(const p of place){const o=Math.round(p.start*rate);for(let k=0;k<p.c.length&&o+k<total;k++)out[o+k]+=p.c[k]}
+    for(let k=0;k<total;k++) out[k]=Math.max(-1,Math.min(1,out[k]));
+    abuf=vBuf; vCues=place.map(p=>p.start).concat([lastEnd]); vLines=segs.map(g=>g.text); analyzeCues();
+    const blob=toWav(vBuf), dl=$('vdl');
+    if(dl.href) URL.revokeObjectURL(dl.href);
+    dl.href=URL.createObjectURL(blob); dl.download='suara-'+Date.now()+'.wav';
+    dl.textContent='Muat Turun Suara (WAV, '+vBuf.duration.toFixed(1)+' saat)'; dl.style.display='block';
+    st('Suara siap: '+segs.length+' baris, '+vBuf.duration.toFixed(1)+' saat. '+(notes.length?'Nota: '+notes.join('; ')+'. ':'Semua muat dalam masa. ')+'Suara ini juga dipakai untuk Main / Rakam.');
+  }catch(e){st(e.message,1)}
+  finally{$('vgen').disabled=false}
+}
+function playStamped(){
+  if(!vBuf) return st('Jana suara dahulu',1);
+  const a=ensureAC();
+  if(vSrc){try{vSrc.stop()}catch(e){} vSrc=null; $('vplay').textContent='Dengar'; return;}
+  vSrc=a.createBufferSource(); vSrc.buffer=vBuf; vSrc.connect(a.destination); vSrc.start();
+  $('vplay').textContent='Henti'; vSrc.onended=()=>{vSrc=null;$('vplay').textContent='Dengar'};
+}
+$('vgen').onclick=makeStamped; $('vplay').onclick=playStamped;
+try{ $('vtext').value=S.g('sv_vtext'); $('vtext').addEventListener('input',()=>S.s('sv_vtext',$('vtext').value)); }catch(e){}
 
 // ---------- main / rakam ----------
 let src=null;
