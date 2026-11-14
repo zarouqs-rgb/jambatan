@@ -1,10 +1,1 @@
-Nak kurangkan iklan atau tapis laman berbahaya, cuba tengok tetapan Private DNS pada Android kau.
-DNS bantu telefon cari alamat laman web, dan Private DNS menyulitkan pertanyaan tu.
-Buka Settings dan cari Private DNS kerana laluan menu boleh berbeza ikut telefon.
-Pada HONOR ni, buka More connections dan tekan Private DNS.
-Pilih Manual atau Private DNS provider hostname, lepas tu isi satu alamat ikut tujuan kau.
-Dalam demo ni aku pilih Cloudflare Security, yang menapis domain berkaitan perisian berbahaya.
-Kalau nak tapis kandungan dewasa sekali, pilih Cloudflare Family.
-Kalau nak kurangkan iklan dan penjejak, pilih AdGuard DNS.
-Lepas isi, kembali ke More connections dan semak alamat di sebelah Private DNS.
-Kalau sambungan internet bermasalah selepas tukar, masuk semula ke Private DNS dan pilih Auto.
+Hujan turun lebat, dan seorang pakcik berdiri di tepi jalan tanpa payung. Ramai yang lalu, masing-masing laju mengejar masa. Seorang budak muda lalu, kemudian berhenti dan berpatah balik. Dia payungkan pakcik itu, walaupun bahunya sendiri basah. Mereka berjalan perlahan sampai ke tempat berteduh. Kebaikan kecil, tetap hangat walau dalam hujan.
