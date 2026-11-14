@@ -149,8 +149,8 @@ function momPose(t){
   const yaw=lerp(PI,2*PI,turn),f=fwdOf(yaw),L=leftOf(yaw);
   const stand=lv(B,[SEAT[0],0,SEAT[2]+.36],seg(t,T_SIT0,T_SIT0+.8));
   const hy=lerp(r.hip0.y-.015,SEAT[1],kk),hz=lerp(stand[2],SEAT[2],kk);
-  const p={hip:[lerp(stand[0],SEAT[0],kk),hy,hz],yaw,lean:.35*kk*(1-kk)*4+.06*kk,headPitch:lerp(.12,-.05,kk),headYaw:-.5*seg(t,T_SIT1-.2,T_SIT1+.6),
-    look:[MAN_SIDE[0],1.62,MAN_SIDE[2]],jaw:talk,hand:{},foot:{}};
+  const p={hip:[lerp(stand[0],SEAT[0],kk),hy,hz],yaw,lean:.35*kk*(1-kk)*4+.06*kk,headPitch:lerp(.12,-.05,kk)-.3*seg(t,T_SIT1-.2,T_SIT1+.6),headYaw:.6*seg(t,T_SIT1-.2,T_SIT1+.6),
+    look:headPos(rigs.pemuda),jaw:talk,hand:{},foot:{}};
   const fx=lerp(0,.5,kk),fz=stand[2]*(1-kk)+SEAT[2]*kk;
   p.foot.L={p:add(add([p.hip[0],.09,fz],mv(L,.12)),mv(f,fx))};p.foot.R={p:add(add([p.hip[0],.09,fz],mv(L,-.12)),mv(f,fx))};
   p.hand.R={p:add(add(p.hip,mv(f,.27)),add(mv(L,-.04),[0,.22*(1-kk)+.2*kk,0])),dir:mv(L,1),n:mv(f,-1),curl:.15};
@@ -165,7 +165,7 @@ function manPose(t){
   const hipStand=lv(standHip,sideHip,aside);
   const p={hip:lv(sitP.hip,hipStand,up),yaw,lean:lerp(.08,0,up)+.45*up*(1-up)*4,
     headPitch:lerp(.55,-.12,notice)*(1-up)+(-.05)*up,headYaw:.12*notice*(1-up),hand:{},foot:{},
-    look:t>T_LOOK?(t>T_SIT1-.3?[0,1.15,SEAT[2]]:[MOM_STAND[0],1.52,MOM_STAND[2]]):null,
+    look:t>T_LOOK?headPos(rigs.ibu):null,
     jaw:(t>T_GEST+.1&&t<T_GEST+1.0)?.07+.07*sin(t*15):0};
   const fs=[add([hipStand[0],.09,hipStand[2]],mv(L,.12)),add([hipStand[0],.09,hipStand[2]],mv(L,-.12))];
   const lift=aside*(1-aside)*4*.06;
@@ -195,7 +195,8 @@ function camAt(t){
   else if(t<BEATS[3]){const d=k(BEATS[2],BEATS[3]);c=add(ph,[0,-.08,0]);e=add(ph,[lerp(.66,.6,d),.03,lerp(1.0,.94,d)]);f=32;}
   else if(t<BEATS[4]){e=lv([2.3,1.55,.5],[2.1,1.5,.42],k(BEATS[3],BEATS[4]));c=lv([.2,1.2,-.75],[.35,1.22,-.72],k(BEATS[3],BEATS[4]));f=42;}
   else if(t<BEATS[5]){const kk=k(BEATS[4]+1.9,BEATS[4]+2.3);const e1=[-1.1,1.45,.6],c1=[0,1.0,-.9];
-    const e2=add(mh,[.24,-.04,1.05]),c2=add(mh,[0,-.1,0]);e=lv(e1,e2,kk);c=lv(c1,c2,kk);f=lerp(40,32,kk);}
+    const dx=mh[0]-ph[0],dz=mh[2]-ph[2],dl=Math.hypot(dx,dz)||1,ux=dx/dl,uz=dz/dl;
+    const e2=[ph[0]-ux*.35+uz*.42,ph[1]+.06,ph[2]-uz*.35-ux*.42],c2=add(mh,[0,-.06,0]);e=lv(e1,e2,kk);c=lv(c1,c2,kk);f=lerp(40,32,kk);}
   else{e=lv([2.2,1.6,.75],[2.9,1.75,.9],k(BEATS[5],D));c=[.3,1.05,-.8];f=46;}
   const sh=[.003*sin(t*7.1),.002*sin(t*5.3),0];
   return {e:add(e,sh),c,f};}
@@ -230,6 +231,6 @@ draw(c,t,w,h){
   L(BEATS[3],BEATS[4],'BANGUN & BERI','TEMPAT DUDUK','#ffd23a',true);
   L(BEATS[4],BEATS[5],'TERIMA KASIH','',null,false);
   const k=seg(t,BEATS[5],BEATS[5]+.5);txt(c,'UTAMAKAN',w/2,230,104,'#fff',k,false);txt(c,'YANG LEBIH MEMERLUKAN',w/2,330,60,'#ffd23a',k,true);
-  heart(c,w/2,h*.6-80*seg(t,BEATS[4]+2.2,BEATS[4]+3.4),2.2,win(t,BEATS[4]+2.2,BEATS[5]-.1,.4)*.85);
+  heart(c,w*.8,h*.74-80*seg(t,BEATS[4]+2.2,BEATS[4]+3.4),1.6,win(t,BEATS[4]+2.2,BEATS[5]-.1,.4)*.85);
 }};
 })();
