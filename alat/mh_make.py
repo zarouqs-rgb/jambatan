@@ -35,14 +35,28 @@ def skirt_shape(P,head):
         tgt=np.array([u[0],p[1],u[2]+zc])
         if np.hypot(p[0]/rx,(p[2]-zc)/rz)<1: out[i]=p*(1-k)+tgt*k
     return out
-def drape_shape(P,head):
+def smooth_cloud(P,r,it):
+    D2=((P[:,None,:]-P[None,:,:])**2).sum(-1);Wm=np.exp(-D2/(r**2));Wm/=Wm.sum(1,keepdims=True)
     out=P.copy()
-    D2=((P[:,None,:]-P[None,:,:])**2).sum(-1)
-    Wm=np.exp(-D2/(.3**2));Wm/=Wm.sum(1,keepdims=True)
-    for _ in range(3): out=Wm@out
-    # jangan masuk ke dalam: kekal sekurang-kurangnya pada kedudukan asal arah ke depan
-    out[:,2]=np.maximum(out[:,2],P[:,2]-.05)
+    for _ in range(it): out=Wm@out
     return out
+def chest_flat(P,head,lift):
+    # ratakan bahagian dada depan: z tidak kurang daripada satah licin di depan dada
+    out=P.copy();by=head['breast.L'][1]
+    band=(P[:,1]>by-1.6)&(P[:,1]<by+1.0)&(P[:,2]>head['breast.L'][2]-.2)
+    if band.any():
+        zf=np.percentile(P[band,2],97)+lift
+        for i in np.where(band)[0]:
+            w=min(1,(P[i,1]-(by-1.6))/.5)*min(1,((by+1.0)-P[i,1])/.5)*min(1,max(0,1-abs(P[i,0])/1.6))
+            out[i,2]=max(P[i,2],P[i,2]*(1-w)+zf*w)
+    return out
+def drape_shape(P,head):
+    out=smooth_cloud(P,.45,4)
+    out[:,2]=np.maximum(out[:,2],P[:,2]-.02)
+    out=chest_flat(out,head,.05)
+    return smooth_cloud(out,.2,2)
+def baju_shape(P,head):
+    return chest_flat(P,head,0)
 def hijab_shape(P,head):
     c=(head['head']+head['eye.L']*.0+head['eye.R']*.0);e=(head['eye.L']+head['eye.R'])/2
     c=np.array([0,e[1]+.05,e[2]-.75])
@@ -83,9 +97,9 @@ def mom_spec(baju_c=(.93,.6,.62),hij_c=(.97,.92,.85),shoe_c=(.2,.18,.22),preg=Tr
     def drape(dom,V,head):
         e=eyeinfo(head)
         return lambda v:(dom[v] in TORSO or dom[v] in ('neck01','neck02')) and V[v][1]>e[1]-4.6
-    return {'targets':[('macrodetails/universal-female-young-averagemuscle-averageweight.target',1),('macrodetails/asian-female-young.target',1),('breast/female-young-averagemuscle-averageweight-mincup-averagefirmness.target',1)]+([('stomach/stomach-pregnant-incr.target',1)] if preg else []),
+    return {'targets':[('macrodetails/universal-female-young-averagemuscle-averageweight.target',1),('macrodetails/asian-female-young.target',1),('breast/female-young-averagemuscle-averageweight-mincup-averagefirmness.target',1),('breast/breast-point-decr.target',1),('breast/breast-volume-vert-down.target',.6)]+([('stomach/stomach-pregnant-incr.target',1)] if preg else []),
       'skin':list(skin),'lip':[.72,.4,.4],'brow':[.12,.08,.06],'iris':[.25,.15,.08],
-      'clothes':[{'name':'baju','pred':baju,'col':list(baju_c),'off':.08},{'name':'kain','pred':legs,'col':[c*.96 for c in baju_c],'off':.06},
+      'clothes':[{'name':'baju','pred':baju,'col':list(baju_c),'off':.08,'reshape':baju_shape},{'name':'kain','pred':legs,'col':[c*.96 for c in baju_c],'off':.06},
                  {'name':'shoes','pred':shoes,'col':list(shoe_c),'off':.15},{'name':'drape','pred':drape,'col':list(hij_c),'off':.3,'reshape':drape_shape},
                  {'name':'hijab','pred':hijab,'col':list(hij_c),'off':.12,'reshape':hijab_shape}],
       'skirt':list(baju_c)}
