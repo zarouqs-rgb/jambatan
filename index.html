@@ -249,7 +249,7 @@ function pickMime(){
   const c=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
   return c.find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||'';
 }
-function startRec(){
+function startRecMR(){
   if(!V) return st('Muat adegan dahulu',1);
   if(recording) return;
   if(!window.MediaRecorder) return st('Pelayar tidak menyokong rakaman',1);
@@ -274,6 +274,77 @@ function startRec(){
   st('Merekod'+(abuf?' dengan suara':' tanpa suara (jana suara dahulu jika mahu)')+'...');
   mr.start(250); startAudio(dest); raf=requestAnimationFrame(tick);
 }
+// ---------- rakam: susun bingkai satu-satu (WebCodecs) jadi MP4 lengkap, tempoh betul di galeri ----------
+let MUX=null;
+async function getMuxer(){ if(MUX) return MUX; MUX=(new Function(await getText('lib/mp4-muxer.js')+'\nreturn Mp4Muxer;'))(); return MUX; }
+async function pickVideoCfg(w,h,fps){
+  for(const codec of ['avc1.640028','avc1.4d0028','avc1.640033','avc1.42003e','avc1.420034']){
+    const c={codec,width:w,height:h,bitrate:8e6,framerate:fps,avc:{format:'avc'}};
+    try{ const r=await VideoEncoder.isConfigSupported(c); if(r.supported) return c; }catch(e){}
+  }
+  return null;
+}
+async function pickAudioCfg(){
+  for(const [codec,mc] of [['mp4a.40.2','aac'],['opus','opus']]){
+    const c={codec,sampleRate:48000,numberOfChannels:1,bitrate:128000};
+    try{ const r=await AudioEncoder.isConfigSupported(c); if(r.supported) return {cfg:c,mc}; }catch(e){}
+  }
+  return null;
+}
+async function voice48k(){
+  const n=Math.ceil(abuf.duration*48000), oc=new OfflineAudioContext(1,n,48000), s=oc.createBufferSource();
+  s.buffer=abuf; s.connect(oc.destination); s.start(); return (await oc.startRendering()).getChannelData(0);
+}
+async function startRec(){
+  if(!V) return st('Muat adegan dahulu',1);
+  if(recording) return;
+  if(!window.VideoEncoder) return startRecMR();
+  stop(); recording=true;
+  $('rec').disabled=true; $('play').disabled=true; $('voice').disabled=true;
+  try{
+    const M=await getMuxer(), fps=V.fps||30, w=cv.width, h=cv.height;
+    const vcfg=await pickVideoCfg(w,h,fps); if(!vcfg) throw new Error('H.264 tidak disokong');
+    const acfg=abuf&&window.AudioEncoder?await pickAudioCfg():null;
+    const muxer=new M.Muxer({target:new M.ArrayBufferTarget(),fastStart:'in-memory',firstTimestampBehavior:'offset',
+      video:{codec:'avc',width:w,height:h,frameRate:fps},
+      audio:acfg?{codec:acfg.mc,numberOfChannels:1,sampleRate:48000}:undefined});
+    let err=null;
+    const ve=new VideoEncoder({output:(c,m)=>muxer.addVideoChunk(c,m),error:e=>err=e}); ve.configure(vcfg);
+    if(acfg){
+      const ae=new AudioEncoder({output:(c,m)=>muxer.addAudioChunk(c,m),error:e=>err=e}); ae.configure(acfg.cfg);
+      const pcm=await voice48k(), N=1024;
+      for(let i=0;i<pcm.length;i+=N){
+        const part=pcm.subarray(i,Math.min(i+N,pcm.length));
+        const ad=new AudioData({format:'f32-planar',sampleRate:48000,numberOfFrames:part.length,numberOfChannels:1,timestamp:Math.round(i/48000*1e6),data:part.slice()});
+        ae.encode(ad); ad.close();
+      }
+      await ae.flush(); ae.close();
+    }
+    analyzeCues();
+    const dur=abuf?abuf.duration+0.6:V.duration, total=Math.round(dur*fps);
+    for(let i=0;i<total;i++){
+      if(err) throw err;
+      frame(sceneTime(i/fps));
+      const vf=new VideoFrame(cv,{timestamp:Math.round(i*1e6/fps),duration:Math.round(1e6/fps)});
+      ve.encode(vf,{keyFrame:i%(fps*2)===0}); vf.close();
+      while(ve.encodeQueueSize>4) await new Promise(r=>setTimeout(r,0));
+      if(i%15===0){ st('Menyusun video: '+Math.round(i/total*100)+'%'); await new Promise(r=>setTimeout(r,0)); }
+    }
+    await ve.flush(); ve.close(); if(err) throw err;
+    muxer.finalize();
+    const blob=new Blob([muxer.target.buffer],{type:'video/mp4'}), url=URL.createObjectURL(blob);
+    const pv=$('pv'); pv.src=url; pv.style.display='block';
+    const dl=$('dl'); dl.href=url; dl.download='video.mp4'; dl.style.display='block';
+    dl.textContent='Muat Turun Video (MP4, '+(blob.size/1048576).toFixed(1)+' MB, '+dur.toFixed(1)+' saat'+(acfg?', dengan suara':abuf?', TANPA suara: pelayar tak sokong pengekod audio':', tanpa suara')+')';
+    st('Siap. Tempoh '+dur.toFixed(1)+' saat, 30 fps tetap.');
+    recording=false; $('rec').disabled=false; $('play').disabled=false; $('voice').disabled=false;
+  }catch(e){
+    console.warn(e); recording=false;
+    st('Cara baru gagal ('+(e.message||e)+'), guna rakaman masa nyata...');
+    startRecMR();
+  }
+}
+
 function finishRec(){
   frame(V.loop===false?V.duration:(abuf?abuf.duration:V.duration)%V.duration);
   recording=false; playing=false; $('play').textContent='Main';
