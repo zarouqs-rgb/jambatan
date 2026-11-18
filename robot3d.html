@@ -328,8 +328,10 @@ function rebuildLabels(){
 
 /* ---------- gabung / ganti ---------- */
 function loadScript(txt,merge,pop){
+  var km=/^#kamera[ \t]+(.*)$/m.exec(txt);
+  if(km){txt=txt.replace(km[0],'');km[1].split(/\s+/).forEach(function(kv){var a=kv.split('=');if(a.length==2&&isFinite(+a[1])&&a[0] in cam)cam[a[0]]=+a[1]})}
   var o=parseScript(txt);
-  if(!o.parts.length&&!o.palet)throw new Error('Skrip kosong. Perlu ada #palet atau #bahagian.');
+  if(!o.parts.length&&!o.palet&&!km)throw new Error('Skrip kosong. Perlu ada #palet atau #bahagian.');
   if(o.palet){PALKOD=o.palet.buf.join('\n').replace(/^\n+|\s+$/g,'');compilePal()}
   var np=o.parts.map(mkPart);
   if(!merge&&np.length){PARTS.forEach(function(p){if(p.node&&p.node.parent)p.node.parent.remove(p.node)});PARTS=[]}
