@@ -40,6 +40,9 @@ textarea{width:100%;background:#0a0c13;color:#cfe3ff;border:1px solid var(--ln);
 .err{color:var(--er);font-size:12px;min-height:16px;margin:4px 0;white-space:pre-wrap}
 .hint{font-size:12px;color:var(--mu);line-height:1.5;margin:6px 0}
 code{background:#0a0c13;padding:1px 5px;border-radius:5px;color:var(--gl)}
+#rt{color:var(--er);font-weight:700;font-size:13px}
+button.rec.on{background:var(--er);border-color:var(--er);color:#fff}
+#outvid{display:none;width:100%;max-width:100%;border-radius:10px;margin-top:8px;background:#000}
 #outimg{max-width:100%;border-radius:10px;margin-top:8px;display:none;background:repeating-conic-gradient(#2a3042 0 25%,#1b2030 0 50%) 50%/20px 20px}
 </style></head><body>
 <h1>Makmal Robot <span>· pecah &amp; cantum</span></h1>
@@ -52,10 +55,14 @@ code{background:#0a0c13;padding:1px 5px;border-radius:5px;color:var(--gl)}
   </div>
   <div class="row">
    <button id="bAyun">Ayun</button>
+   <button id="bRakam" class="rec">Rakam</button>
    <button id="bPng" class="pri">Simpan PNG</button>
+   <span id="rt"></span>
   </div>
   <div id="st"></div>
   <img id="outimg" alt="Hasil PNG">
+  <video id="outvid" controls playsinline></video>
+  <div class="row"><button id="bDlVid" class="pri" style="display:none">Muat turun video</button></div>
  </div>
  <div class="box">
   <div class="tabs">
@@ -105,6 +112,7 @@ code{background:#0a0c13;padding:1px 5px;border-radius:5px;color:var(--gl)}
     <button id="bAmbil">Ambil skrip semasa</button>
     <button id="bSalinSkrip">Salin</button>
     <button id="bGit">Muat dari GitHub</button>
+    <button id="bKosong" class="bad">Kosongkan</button>
    </div>
   </div>
 
@@ -133,7 +141,7 @@ var W=1000,H=1200,DEG=Math.PI/180,STILL_T=0.9,SPEED=5.6;
 var PAL_DEF={metal:['#7d8ba1','#e3eaf3','#adb9ca','#5f6e84'],dark:'#222b3b',mid:'#46526b',accent:'#ff8a2a',accent2:'#ffc15e',glow:'#35e6ff',outline:'#151b27'};
 var PARTS=[],PALKOD="return {};",PAL=PAL_DEF,palErr="",sel=null,idc=1;
 var S={bg:'studio',bayang:true,label:true,sendi:true,png:2};
-var E=0,Etarget=0,anim=false,tAnim=0,lastTs=0,need=true,lastPos=[];
+var E=0,Etarget=0,anim=false,tAnim=0,lastTs=0,need=true,lastPos=[],REC=null,vidUrl=null,vidName="robot.webm";
 var $=function(i){return document.getElementById(i)};
 var cv=$('cv'),cx=cv.getContext('2d');
 
@@ -156,7 +164,7 @@ function parseScript(txt){
   return out;
 }
 function mkPart(raw){
-  var p={id:String(raw.id||'').replace(/[^\w]/g,'_'),nama:raw.nama||'',induk:'',x:0,y:0,rot:0,z:0,cermin:false,tunjuk:true,ayun:0,fasa:0,kod:raw.buf.join('\n').replace(/^\n+|\s+$/g,'')};
+  var p={id:String(raw.id||'').replace(/[^\w]/g,'_'),nama:raw.nama||'',induk:'',x:0,y:0,rot:0,z:0,cermin:false,tunjuk:true,ayun:0,fasa:0,kod:raw.buf.join('\n').replace(/^\n+|\s+$/g,''),born:0};
   if(!p.id)p.id='b'+(idc++);
   if(!p.nama)p.nama=p.id;
   raw.kv.replace(/(\w+)=(\S*)/g,function(_,k,v){
@@ -176,11 +184,12 @@ function toScript(){
   });
   return s;
 }
-function loadScript(txt,merge){
+function loadScript(txt,merge,pop){
   var o=parseScript(txt);
   if(!o.parts.length&&!o.palet)throw new Error('Skrip kosong. Perlu ada #palet atau #bahagian.');
   if(o.palet){PALKOD=o.palet.buf.join('\n').replace(/^\n+|\s+$/g,'');compilePal()}
   var np=o.parts.map(mkPart);
+  if(pop){var nw=performance.now();np.forEach(function(p){p.born=nw})}
   if(merge){
     np.forEach(function(p){var k=PARTS.findIndex(function(q){return q.id===p.id});if(k>=0)PARTS[k]=p;else PARTS.push(p)});
   }else if(np.length){PARTS=np}
@@ -244,7 +253,7 @@ function render(ctx,o){
   var fx=1+1.9*e,fy=1+1.1*e,s=1/(1+0.6*e);
   function vx(x){return 500+((500+(x-500)*fx)-500)*s}
   function vy(y){return cyy+((cyy+(y-cyy)*fy)-cyy)*s}
-  if(o.bayang&&o.bg!=='tembus'||o.bayang&&!o.preview){
+  if(n>0&&(o.bayang&&o.bg!=='tembus'||o.bayang&&!o.preview)){
     ctx.save();ctx.globalAlpha=0.35*(1-Math.min(1,e*3));
     ctx.fillStyle=o.bg==='terang'?'#6b7690':'#000';ctx.beginPath();ctx.ellipse(500,1068,250,26,0,0,7);ctx.fill();ctx.restore();
   }
@@ -253,9 +262,11 @@ function render(ctx,o){
   order.forEach(function(r){
     var p=r.p;
     ctx.save();
+    var age=p.born?Math.min(1,((o.now||0)-p.born)/600):1,ez=1-Math.pow(1-age,3);
     ctx.translate(vx(r.x),vy(r.y));ctx.scale(s,s);ctx.rotate(r.a*(1-e));
+    if(age<1)ctx.scale(0.65+0.35*ez,0.65+0.35*ez);
     if(p.cermin)ctx.scale(-1,1);
-    ctx.lineWidth=4;ctx.strokeStyle=P.outline;ctx.fillStyle='#888';ctx.lineJoin='round';ctx.lineCap='round';ctx.shadowBlur=0;ctx.globalAlpha=1;
+    ctx.lineWidth=4;ctx.strokeStyle=P.outline;ctx.fillStyle='#888';ctx.lineJoin='round';ctx.lineCap='round';ctx.shadowBlur=0;ctx.globalAlpha=age<1?ez:1;
     if(p.fn){
       try{p.fn(ctx,P,o.t,Hh.rr,Hh.lin,Hh.rad,Hh.bolt);if(p.rerr){p.rerr='';o.dirtyErr=1}}
       catch(err){ctx.restore();ctx.save();ctx.translate(vx(r.x),vy(r.y));ctx.scale(s,s);ctx.setLineDash([8,6]);ctx.strokeStyle='#ff5c6c';ctx.lineWidth=3;ctx.strokeRect(-36,-36,72,72);ctx.beginPath();ctx.moveTo(-36,-36);ctx.lineTo(36,36);ctx.moveTo(36,-36);ctx.lineTo(-36,36);ctx.stroke();
@@ -263,6 +274,7 @@ function render(ctx,o){
     }else{
       ctx.setLineDash([8,6]);ctx.strokeStyle='#ff5c6c';ctx.lineWidth=3;ctx.strokeRect(-36,-36,72,72);
     }
+    if(age<1){ctx.save();ctx.globalAlpha=1-age;ctx.lineWidth=4;ctx.strokeStyle=P.glow;ctx.beginPath();ctx.arc(0,0,14+80*age,0,7);ctx.stroke();ctx.restore()}
     ctx.restore();
   });
   if(o.guides||o.labels){
@@ -278,9 +290,9 @@ function render(ctx,o){
     }
   }
 }
-function curT(){return anim?tAnim:STILL_T}
+function curT(){return anim?tAnim:(REC?performance.now()/1000:STILL_T)}
 function draw(){
-  var o={scale:1,bg:S.bg,preview:true,guides:S.sendi,labels:S.label,t:curT(),e:E,bayang:S.bayang,sel:sel};
+  var o={scale:1,bg:S.bg,preview:true,guides:S.sendi,labels:S.label,t:curT(),e:E,bayang:S.bayang,sel:sel,now:performance.now()};
   render(cx,o);
   if(o.dirtyErr)updateErrs();
 }
@@ -289,6 +301,14 @@ function loop(ts){
   if(anim){tAnim+=dt;need=true}
   if(Math.abs(Etarget-E)>0.002){E+=(Etarget-E)*Math.min(1,dt*7);need=true;$('sl').value=Math.round(E*100)}
   else if(E!==Etarget){E=Etarget;need=true;$('sl').value=Math.round(E*100)}
+  var nw=performance.now();
+  for(var i=0;i<PARTS.length;i++){if(PARTS[i].born&&nw-PARTS[i].born<650){need=true;break}}
+  if(REC){
+    need=true;
+    render(REC.x,{scale:REC.c.width/W,bg:S.bg==='tembus'?'studio':S.bg,preview:false,guides:false,labels:false,t:curT(),e:E,bayang:S.bayang,sel:null,now:nw});
+    var sec=Math.floor((nw-REC.t0)/1000);
+    if(sec!==REC.sec){REC.sec=sec;$('rt').textContent='\u25CF '+String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
+  }
   if(need){need=false;draw()}
   requestAnimationFrame(loop);
 }
@@ -363,11 +383,11 @@ $('bAyun').onclick=function(){anim=!anim;this.classList.toggle('on',anim);if(!an
 $('bBaru').onclick=function(){
   var id='b'+(idc++);while(PARTS.some(function(p){return p.id===id}))id='b'+(idc++);
   var p={id:id,nama:'Bahagian '+id,induk:sel||'',x:0,y:0,rot:0,z:5,cermin:false,tunjuk:true,ayun:0,fasa:0,kod:"rr(-30,-30,60,60,12); ctx.fillStyle=lin(-30,0,30,0,P.metal); ctx.fill(); ctx.stroke();"};
-  compile(p);PARTS.push(p);sel=p.id;refreshAll();save();
+  compile(p);p.born=performance.now();PARTS.push(p);sel=p.id;refreshAll();save();
 };
 $('bSalin').onclick=function(){
   var p=curPart();if(!p)return;
-  var id=p.id+'_'+(idc++);var q=Object.assign({},p,{id:id,nama:p.nama+' salinan'});compile(q);PARTS.push(q);sel=id;refreshAll();save();
+  var id=p.id+'_'+(idc++);var q=Object.assign({},p,{id:id,nama:p.nama+' salinan'});compile(q);q.born=performance.now();PARTS.push(q);sel=id;refreshAll();save();
 };
 $('bPadam').onclick=function(){
   var p=curPart();if(!p)return;
@@ -382,7 +402,7 @@ function copyText(t){
   return Promise.resolve(fb());
 }
 function doLoad(merge){
-  try{var n=loadScript($('scr').value,merge);$('scrErr').textContent='';status((merge?'Gabung: ':'Ganti: ')+n+' bahagian dimuat.')}
+  try{var n=loadScript($('scr').value,merge,true);$('scrErr').textContent='';status((merge?'Gabung: ':'Ganti: ')+n+' bahagian dimuat.')}
   catch(e){$('scrErr').textContent=e.message}
 }
 $('bGanti').onclick=function(){doLoad(false)};
@@ -398,6 +418,30 @@ $('bGit').onclick=function(){
     },function(){go(i+1)});
   })(0);
 };
+function kosongkan(){PARTS=[];sel=null;E=Etarget=0;$('sl').value=0;anim=false;tAnim=0;$('bAyun').classList.remove('on');refreshAll();save();status('Robot dikosongkan. Tambah bahagian dalam tab Skrip (Gabung).')}
+$('bKosong').onclick=kosongkan;
+function recMime(){var c=['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];for(var i=0;i<c.length;i++){try{if(MediaRecorder.isTypeSupported(c[i]))return c[i]}catch(e){}}return ''}
+function recStart(){
+  if(!window.MediaRecorder||!HTMLCanvasElement.prototype.captureStream){status('Pelayar ini tak sokong rakaman.');return}
+  var c=document.createElement('canvas');c.width=720;c.height=864;var x=c.getContext('2d');
+  var mime=recMime(),mr,chunks=[],stream=c.captureStream(30);
+  try{mr=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:6000000}:{videoBitsPerSecond:6000000})}catch(e){mr=new MediaRecorder(stream)}
+  mr.ondataavailable=function(ev){if(ev.data&&ev.data.size)chunks.push(ev.data)};
+  mr.onstop=function(){
+    var secs=Math.round((performance.now()-REC.t0)/1000),type=(mr.mimeType||mime||'video/webm').split(';')[0];
+    REC=null;$('rt').textContent='';$('bRakam').textContent='Rakam';$('bRakam').classList.remove('on');
+    var b=new Blob(chunks,{type:type});
+    if(vidUrl)URL.revokeObjectURL(vidUrl);
+    vidUrl=URL.createObjectURL(b);vidName='robot-bina.'+(type.indexOf('mp4')>=0?'mp4':'webm');
+    var v=$('outvid');v.src=vidUrl;v.style.display='block';$('bDlVid').style.display='inline-block';
+    status('Rakaman siap: '+secs+' saat, '+(b.size/1048576).toFixed(1)+' MB. Semak di bawah, kemudian tekan Muat turun video.');
+    need=true;
+  };
+  REC={c:c,x:x,mr:mr,t0:performance.now(),sec:-1};
+  mr.start(500);$('bRakam').textContent='Henti rakam';$('bRakam').classList.add('on');status('Merakam panel robot sahaja (tanpa panel kod).');need=true;
+}
+$('bRakam').onclick=function(){if(REC){if(REC.mr.state!=='inactive')REC.mr.stop()}else recStart()};
+$('bDlVid').onclick=function(){if(!vidUrl)return;var a=document.createElement('a');a.href=vidUrl;a.download=vidName;document.body.appendChild(a);a.click();a.remove()};
 $('bSet').onclick=function(){loadScript(DEFAULT_SCRIPT,false);$('scr').value='';status('Robot asal dipulihkan.')};
 
 ['sBg','sPng'].forEach(function(i){$(i).addEventListener('change',function(){S.bg=$('sBg').value;S.png=+$('sPng').value;need=true})});
@@ -425,7 +469,7 @@ compilePal();
 var started=false;
 try{var sv=localStorage.getItem('makmal_robot_v1');if(sv&&sv.indexOf('#bahagian')>=0){loadScript(sv,false);started=true;status('Kerja terakhir dipulihkan. Tab Tetapan > Set semula untuk robot asal.')}}catch(e){}
 if(!started)loadScript(DEFAULT_SCRIPT,false);
-window.MakmalRobot={load:function(t,m){return loadScript(t,!!m)},script:toScript,parts:function(){return PARTS},pecah:function(v){Etarget=v?1:0;need=true},render:function(){need=true}};
+window.MakmalRobot={kosong:kosongkan,rakam:function(){$('bRakam').click()},load:function(t,m){return loadScript(t,!!m)},script:toScript,parts:function(){return PARTS},pecah:function(v){Etarget=v?1:0;need=true},render:function(){need=true}};
 requestAnimationFrame(loop);
 })();
 </script>
