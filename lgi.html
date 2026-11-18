@@ -137,10 +137,19 @@ async function call(models,body,tries){
 }
 function partsText(j){try{return j.candidates[0].content.parts.map(function(p){return p.text||""}).join("")}catch(e){return ""}}
 function partsImg(j){try{var ps=j.candidates[0].content.parts;for(var i=0;i<ps.length;i++){var d=ps[i].inlineData||ps[i].inline_data;if(d&&d.data)return{mime:d.mimeType||d.mime_type||"image/png",data:d.data}}}catch(e){}return null}
-async function askJson(sys,user){
-  var j=await call(TXT_MODELS,{systemInstruction:{parts:[{text:sys}]},contents:[{role:"user",parts:[{text:user}]}],generationConfig:{responseMimeType:"application/json",temperature:.9}});
+var S_=function(t){return{type:t}};
+var STORY_SCHEMA={type:"OBJECT",properties:{title:S_("STRING"),logline:S_("STRING"),location:S_("STRING"),
+  characters:{type:"ARRAY",items:{type:"OBJECT",properties:{name:S_("STRING"),look:S_("STRING"),voice:S_("STRING")},required:["name","look"]}},
+  scenes:{type:"ARRAY",items:{type:"OBJECT",properties:{n:S_("INTEGER"),location:S_("STRING"),characters:{type:"ARRAY",items:S_("STRING")},heavy_action:S_("BOOLEAN"),camera:S_("STRING"),visual_prompt:S_("STRING"),
+    dialogue:{type:"ARRAY",items:{type:"OBJECT",properties:{speaker:S_("STRING"),line:S_("STRING")},required:["speaker","line"]}},sfx:S_("STRING")},required:["visual_prompt"]}}},required:["title","characters","scenes"]};
+async function askJson(sys,user,schema){
+  var gc={responseMimeType:"application/json",temperature:.9};if(schema)gc.responseSchema=schema;
+  var j=await call(TXT_MODELS,{systemInstruction:{parts:[{text:sys}]},contents:[{role:"user",parts:[{text:user}]}],generationConfig:gc});
   var t=partsText(j).trim().replace(/^```json\s*|^```\s*|```$/g,"");
-  try{return JSON.parse(t)}catch(e){var a=t.indexOf("{"),b=t.lastIndexOf("}");if(a>=0&&b>a)return JSON.parse(t.slice(a,b+1));throw new Error("Jawapan AI bukan JSON sah")}
+  var o;
+  try{o=JSON.parse(t)}catch(e){var a=t.indexOf("{"),b=t.lastIndexOf("}");if(a>=0&&b>a)o=JSON.parse(t.slice(a,b+1));else{log("Jawapan mentah: "+t.slice(0,200));throw new Error("Jawapan AI bukan JSON sah")}}
+  if(Array.isArray(o))o={scenes:o};
+  window.__raw=t;return o;
 }
 async function genImage(prompt,refs){
   var parts=[];(refs||[]).forEach(function(r){parts.push({inlineData:{mimeType:r.mime,data:r.data}})});parts.push({text:prompt});
@@ -178,8 +187,10 @@ function storySystem(f){
 }
 async function makeStory(f){
   var u="IDEA: "+f.idea+"\n"+(f.fix?"FIXED CHARACTERS / LOCATION (must follow exactly): "+f.fix+"\n":"")+(f.extra?"EXTRA NOTES: "+f.extra+"\n":"");
-  var o=await askJson(storySystem(f),u);
-  if(!o.scenes||!o.scenes.length)throw new Error("AI tidak memulangkan babak");
+  var o=await askJson(storySystem(f),u,STORY_SCHEMA);
+  if(o&&o.story&&typeof o.story==="object")o=o.story;
+  if(o&&!o.scenes){var ks=Object.keys(o);for(var q=0;q<ks.length;q++){if(Array.isArray(o[ks[q]])&&o[ks[q]].length&&o[ks[q]][0]&&o[ks[q]][0].visual_prompt){o.scenes=o[ks[q]];break}}}
+  if(!o||!o.scenes||!o.scenes.length){log("Jawapan mentah: "+String(window.__raw||"").slice(0,300));throw new Error("AI tidak memulangkan babak")}
   o.scenes.forEach(function(s,i){s.n=i+1;s.dialogue=(s.dialogue||[]).filter(function(d){return d&&d.line});s.characters=s.characters||[]});
   o.characters=o.characters||[];return o;
 }
