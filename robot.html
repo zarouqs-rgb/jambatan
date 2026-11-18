@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ms"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Makmal Robot</title>
+<style>
+:root{--bg:#0f111a;--pn:#171b29;--pn2:#1f2536;--ln:#2c3550;--tx:#e8ecf6;--mu:#8e9ab8;--ac:#ff8a2a;--gl:#35e6ff;--er:#ff5c6c}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding:12px}
+h1{font-size:18px;margin:0 0 10px;max-width:1280px;margin-left:auto;margin-right:auto}
+h1 span{color:var(--gl)}
+.app{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;max-width:1280px;margin:0 auto}
+@media(min-width:900px){.app{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}.stage{position:sticky;top:8px}}
+.box{background:var(--pn);border:1px solid var(--ln);border-radius:14px;padding:10px}
+#cv{width:100%;height:auto;display:block;border-radius:10px;aspect-ratio:5/6;touch-action:manipulation;cursor:pointer}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+button{background:var(--pn2);color:var(--tx);border:1px solid var(--ln);border-radius:10px;padding:9px 12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+button:hover{border-color:var(--gl)}
+button.pri{background:var(--ac);border-color:var(--ac);color:#1a1006}
+button.on{background:var(--gl);border-color:var(--gl);color:#05202a}
+button.bad{color:var(--er)}
+input[type=range]{flex:1;min-width:120px;accent-color:var(--ac)}
+#st{font-size:12px;color:var(--mu);margin-top:6px;min-height:16px}
+.tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.tabs button{flex:1;min-width:80px}
+.tabs button.on{background:var(--gl);color:#05202a;border-color:var(--gl)}
+.pane{display:none}.pane.on{display:block}
+#chips{display:flex;flex-wrap:wrap;gap:6px;max-height:150px;overflow:auto;padding:2px;margin-bottom:10px}
+.chip{padding:6px 9px;font-size:12px;border-radius:999px}
+.chip.sel{background:var(--ac);border-color:var(--ac);color:#1a1006}
+.chip.err{border-color:var(--er);color:var(--er)}
+.chip.off{opacity:.45}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:8px}
+@media(max-width:520px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+label{display:flex;flex-direction:column;font-size:11px;color:var(--mu);gap:3px}
+label.ck{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--tx)}
+input[type=text],input[type=number],select{background:var(--bg);color:var(--tx);border:1px solid var(--ln);border-radius:8px;padding:7px 8px;font-size:14px;width:100%;font-family:inherit}
+textarea{width:100%;background:#0a0c13;color:#cfe3ff;border:1px solid var(--ln);border-radius:10px;padding:10px;font:13px/1.45 ui-monospace,Consolas,Menlo,monospace;resize:vertical;tab-size:2;white-space:pre}
+#kod{min-height:280px}
+#scr{min-height:300px}
+#pal{min-height:200px}
+.err{color:var(--er);font-size:12px;min-height:16px;margin:4px 0;white-space:pre-wrap}
+.hint{font-size:12px;color:var(--mu);line-height:1.5;margin:6px 0}
+code{background:#0a0c13;padding:1px 5px;border-radius:5px;color:var(--gl)}
+#outimg{max-width:100%;border-radius:10px;margin-top:8px;display:none;background:repeating-conic-gradient(#2a3042 0 25%,#1b2030 0 50%) 50%/20px 20px}
+</style></head><body>
+<h1>Makmal Robot <span>· pecah &amp; cantum</span></h1>
+<div class="app">
+ <div class="stage box">
+  <canvas id="cv" width="1000" height="1200"></canvas>
+  <div class="row">
+   <button id="bPecah">Pecah</button><button id="bCantum">Cantum</button>
+   <input type="range" id="sl" min="0" max="100" value="0" aria-label="Pecah ke Cantum">
+  </div>
+  <div class="row">
+   <button id="bAyun">Ayun</button>
+   <button id="bPng" class="pri">Simpan PNG</button>
+  </div>
+  <div id="st"></div>
+  <img id="outimg" alt="Hasil PNG">
+ </div>
+ <div class="box">
+  <div class="tabs">
+   <button data-tab="t1" class="on">Bahagian</button>
+   <button data-tab="t2">Palet</button>
+   <button data-tab="t3">Skrip</button>
+   <button data-tab="t4">Tetapan</button>
+  </div>
+
+  <div id="t1" class="pane on">
+   <div id="chips"></div>
+   <div class="grid">
+    <label>Nama<input type="text" id="fNama"></label>
+    <label>Induk (sambung pada)<select id="fInduk"></select></label>
+    <label>X sendi<input type="number" step="any" id="fX"></label>
+    <label>Y sendi<input type="number" step="any" id="fY"></label>
+    <label>Sudut (°)<input type="number" step="any" id="fRot"></label>
+    <label>Lapisan Z<input type="number" step="any" id="fZ"></label>
+    <label>Ayun (°)<input type="number" step="any" id="fAyun"></label>
+    <label>Fasa ayun<input type="number" step="any" id="fFasa"></label>
+   </div>
+   <div class="row" style="margin:0 0 8px">
+    <label class="ck"><input type="checkbox" id="fCermin"> Cermin</label>
+    <label class="ck"><input type="checkbox" id="fTunjuk"> Tunjuk</label>
+   </div>
+   <textarea id="kod" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+   <div class="err" id="kodErr"></div>
+   <div class="hint">Kod bahagian: asal <code>(0,0)</code> ialah sendi bahagian ini. Ada <code>ctx</code>, <code>P</code> (palet), <code>t</code> (masa), <code>rr(x,y,w,h,r)</code>, <code>lin(x0,y0,x1,y1,[warna])</code>, <code>rad(x0,y0,r0,x1,y1,r1,[warna])</code>, <code>bolt(x,y,r)</code>. Ketuk sendi pada gambar untuk pilih bahagian.</div>
+   <div class="row">
+    <button id="bBaru">+ Bahagian</button><button id="bSalin">Salin bahagian</button><button id="bPadam" class="bad">Padam</button>
+   </div>
+  </div>
+
+  <div id="t2" class="pane">
+   <div class="hint">Palet warna dikongsi semua bahagian sebagai <code>P</code>. Kod mesti <code>return</code> satu objek.</div>
+   <textarea id="pal" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+   <div class="err" id="palErr"></div>
+  </div>
+
+  <div id="t3" class="pane">
+   <div class="hint">Seluruh robot dalam satu skrip teks: <code>#palet</code> kemudian <code>#bahagian id | Nama | induk=.. x=.. y=.. rot=.. z=.. cermin=0 tunjuk=1 ayun=0 fasa=0</code> diikuti kodnya. <b>Ganti semua</b> tukar seluruh robot. <b>Gabung</b> hanya kemas kini bahagian yang disebut.</div>
+   <textarea id="scr" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+   <div class="err" id="scrErr"></div>
+   <div class="row">
+    <button id="bGanti" class="pri">Ganti semua</button>
+    <button id="bGabung">Gabung</button>
+    <button id="bAmbil">Ambil skrip semasa</button>
+    <button id="bSalinSkrip">Salin</button>
+    <button id="bGit">Muat dari GitHub</button>
+   </div>
+  </div>
+
+  <div id="t4" class="pane">
+   <div class="grid">
+    <label>Latar<select id="sBg"><option value="studio">Studio gelap</option><option value="terang">Terang</option><option value="tembus">Lutsinar</option></select></label>
+    <label>Saiz PNG<select id="sPng"><option value="1">1000 × 1200</option><option value="2" selected>2000 × 2400</option></select></label>
+   </div>
+   <div class="row" style="margin:0 0 10px">
+    <label class="ck"><input type="checkbox" id="sBayang" checked> Bayang lantai</label>
+    <label class="ck"><input type="checkbox" id="sLabel" checked> Nama bahagian (semasa pecah)</label>
+    <label class="ck"><input type="checkbox" id="sSendi" checked> Tanda sendi terpilih</label>
+   </div>
+   <div class="row"><button id="bSet" class="bad">Set semula robot asal</button></div>
+   <div class="hint">Nama bahagian dan tanda sendi hanya untuk paparan. Ia tidak masuk dalam PNG.</div>
+  </div>
+ </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var DEFAULT_SCRIPT="#palet\nreturn {\n  metal: ['#7d8ba1','#e3eaf3','#adb9ca','#5f6e84'],\n  dark: '#222b3b',\n  mid: '#46526b',\n  accent: '#ff8a2a',\n  accent2: '#ffc15e',\n  glow: '#35e6ff',\n  outline: '#151b27'\n};\n#bahagian pinggang | Pinggang | induk= | x=500 y=722 rot=0 z=4 cermin=0 tunjuk=1 ayun=0 fasa=0\nrr(-80,-34,160,68,24); ctx.fillStyle=lin(-80,0,80,0,P.metal); ctx.fill(); ctx.stroke();\nrr(-52,-13,104,26,10); ctx.fillStyle=P.dark; ctx.fill(); ctx.stroke();\nctx.fillStyle=P.accent; rr(-18,-9,36,18,6); ctx.fill(); ctx.stroke();\nbolt(-66,0,5); bolt(66,0,5);\n#bahagian badan | Badan | induk=pinggang | x=0 y=-30 rot=0 z=5 cermin=0 tunjuk=1 ayun=0 fasa=0\nctx.beginPath();\nctx.moveTo(-100,-228); ctx.lineTo(100,-228);\nctx.quadraticCurveTo(122,-228,116,-204); ctx.lineTo(82,-20);\nctx.quadraticCurveTo(78,0,58,0); ctx.lineTo(-58,0);\nctx.quadraticCurveTo(-78,0,-82,-20); ctx.lineTo(-116,-204);\nctx.quadraticCurveTo(-122,-228,-100,-228); ctx.closePath();\nctx.fillStyle=lin(-120,0,120,0,P.metal); ctx.fill(); ctx.stroke();\nrr(-66,-196,132,104,18); ctx.fillStyle=P.dark; ctx.fill(); ctx.stroke();\nctx.fillStyle=P.accent; rr(-70,-70,140,18,6); ctx.fill(); ctx.stroke();\nctx.lineWidth=3;\nfor(let i=0;i<3;i++){ ctx.beginPath(); ctx.moveTo(-34,-40+i*9); ctx.lineTo(34,-40+i*9); ctx.stroke(); }\nbolt(-92,-206,5); bolt(92,-206,5);\n#bahagian teras | Teras Dada | induk=badan | x=0 y=-144 rot=0 z=6 cermin=0 tunjuk=1 ayun=0 fasa=0\nconst k=0.75+0.25*Math.sin(t*3);\nctx.beginPath(); ctx.arc(0,0,40,0,7); ctx.fillStyle=P.mid; ctx.fill(); ctx.stroke();\nctx.save(); ctx.shadowColor=P.glow; ctx.shadowBlur=28*k;\nctx.beginPath(); ctx.arc(0,0,26,0,7); ctx.fillStyle=rad(0,0,2,0,0,26,['#ffffff',P.glow,'#0aa3c4']); ctx.fill(); ctx.restore();\nctx.beginPath(); ctx.arc(0,0,26,0,7); ctx.stroke();\nctx.lineWidth=3;\nfor(let i=0;i<3;i++){ const a=i*2.094+0.5; ctx.beginPath(); ctx.moveTo(Math.cos(a)*30,Math.sin(a)*30); ctx.lineTo(Math.cos(a)*40,Math.sin(a)*40); ctx.stroke(); }\n#bahagian leher | Leher | induk=badan | x=0 y=-216 rot=0 z=4 cermin=0 tunjuk=1 ayun=0 fasa=0\nrr(-28,-34,56,40,10); ctx.fillStyle=lin(-28,0,28,0,P.metal); ctx.fill(); ctx.stroke();\nctx.lineWidth=3;\nfor(let i=0;i<3;i++){ ctx.beginPath(); ctx.moveTo(-28,-26+i*11); ctx.lineTo(28,-26+i*11); ctx.stroke(); }\n#bahagian kepala | Kepala | induk=leher | x=0 y=-26 rot=0 z=8 cermin=0 tunjuk=1 ayun=3 fasa=0.5\nrr(-92,-152,184,152,40); ctx.fillStyle=lin(-92,0,92,0,P.metal); ctx.fill(); ctx.stroke();\nrr(-70,-118,140,72,28); ctx.fillStyle=P.dark; ctx.fill(); ctx.stroke();\nctx.save(); ctx.shadowColor=P.glow; ctx.shadowBlur=18; ctx.fillStyle=P.glow;\nrr(-50,-100,34,34,12); ctx.fill(); rr(16,-100,34,34,12); ctx.fill(); ctx.restore();\nctx.fillStyle='#ffffff';\nctx.beginPath(); ctx.arc(-40,-92,5,0,7); ctx.fill();\nctx.beginPath(); ctx.arc(26,-92,5,0,7); ctx.fill();\nctx.fillStyle=P.accent; rr(-30,-30,60,12,6); ctx.fill(); ctx.stroke();\nbolt(-74,-136,5); bolt(74,-136,5);\n#bahagian antena | Antena | induk=kepala | x=44 y=-148 rot=0 z=6 cermin=0 tunjuk=1 ayun=6 fasa=1\nctx.lineCap='butt';\nctx.lineWidth=10; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-62); ctx.stroke();\nctx.lineWidth=5; ctx.strokeStyle=P.metal[1]; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-62); ctx.stroke();\nctx.strokeStyle=P.outline; ctx.lineWidth=4;\nctx.save(); ctx.shadowColor=P.accent; ctx.shadowBlur=14*(0.6+0.4*Math.sin(t*5));\nctx.beginPath(); ctx.arc(0,-70,12,0,7); ctx.fillStyle=rad(-3,-74,1,0,-70,12,[P.accent2,P.accent]); ctx.fill(); ctx.restore();\nctx.beginPath(); ctx.arc(0,-70,12,0,7); ctx.stroke();\n#bahagian telinga_kiri | Telinga Kiri | induk=kepala | x=-92 y=-76 rot=0 z=7 cermin=0 tunjuk=1 ayun=0 fasa=0\nrr(-22,-36,26,72,11); ctx.fillStyle=lin(-22,0,4,0,[P.metal[3],P.metal[1],P.metal[2]]); ctx.fill(); ctx.stroke();\nctx.fillStyle=P.accent; ctx.beginPath(); ctx.arc(-9,0,7,0,7); ctx.fill(); ctx.stroke();\n#bahagian telinga_kanan | Telinga Kanan | induk=kepala | x=92 y=-76 rot=0 z=7 cermin=1 tunjuk=1 ayun=0 fasa=0\nrr(-22,-36,26,72,11); ctx.fillStyle=lin(-22,0,4,0,[P.metal[3],P.metal[1],P.metal[2]]); ctx.fill(); ctx.stroke();\nctx.fillStyle=P.accent; ctx.beginPath(); ctx.arc(-9,0,7,0,7); ctx.fill(); ctx.stroke();\n#bahagian lengan_atas_kiri | Lengan Atas Kiri | induk=badan | x=-122 y=-194 rot=6 z=9 cermin=0 tunjuk=1 ayun=18 fasa=0\nrr(-23,8,46,116,16); ctx.fillStyle=lin(-23,0,23,0,P.metal); ctx.fill(); ctx.stroke();\nctx.fillStyle=P.accent; rr(-25,62,50,16,6); ctx.fill(); ctx.stroke();\nctx.beginPath(); ctx.arc(0,0,34,0,7); ctx.fillStyle=rad(-10,-12,4,0,0,36,[P.metal[1],P.metal[2],P.metal[3]]); ctx.fill(); ctx.stroke();\nbolt(0,0,7);\n#bahagian lengan_bawah_kiri | Lengan Bawah Kiri | induk=lengan_atas_kiri | x=0 y=124 rot=4 z=10 cermin=0 tunjuk=1 ayun=7 fasa=0.6\nctx.beginPath(); ctx.moveTo(-21,6); ctx.lineTo(21,6); ctx.lineTo(17,104); ctx.quadraticCurveTo(16,112,8,112); ctx.lineTo(-8,112); ctx.quadraticCurveTo(-16,112,-17,104); ctx.closePath();\nctx.fillStyle=lin(-21,0,21,0,P.metal); ctx.fill(); ctx.stroke();\nctx.fillStyle=P.dark; rr(-19,60,38,14,5); ctx.fill(); ctx.stroke();\nctx.beginPath(); ctx.arc(0,0,25,0,7); ctx.fillStyle=rad(-8,-9,3,0,0,26,[P.metal[1],P.metal[2],P.metal[3]]); ctx.fill(); ctx.stroke();\nbolt(0,0,5);\n#bahagian tangan_kiri | Tangan Kiri | induk=lengan_bawah_kiri | x=0 y=108 rot=0 z=11 cermin=0 tunjuk=1 ayun=0 fasa=0\nrr(-17,-4,34,18,6); ctx.fillStyle=P.dark; ctx.fill(); ctx.stroke();\nrr(-24,12,48,40,14); ctx.fillStyle=lin(-24,0,24,0,P.metal); ctx.fill(); ctx.stroke();\nctx.fillStyle=P.metal[2];\nrr(-22,46,19,34,8); ctx.fill(); ctx.stroke();\nrr(3,46,19,34,8); ctx.fill(); ctx.stroke();\n#bahagian lengan_atas_kanan | Lengan Atas Kanan | induk=badan | x=122 y=-194 rot=-6 z=9 cermin=1 tunjuk=1 ayun=18 fasa=3.1416\nrr(-23,8,46,116,16); ctx.fillStyle=lin(-23,0,23,0,P.metal); ctx.fill(); ctx.stroke();\nctx.fillStyle=P.accent; rr(-25,62,50,16,6); ctx.fill(); ctx.stroke();\nctx.beginPath(); ctx.arc(0,0,34,0,7); ctx.fillStyle=rad(-10,-12,4,0,0,36,[P.metal[1],P.metal[2],P.metal[3]]); ctx.fill(); ctx.stroke();\nbolt(0,0,7);\n#bahagian lengan_bawah_kanan | Lengan Bawah Kanan | induk=lengan_atas_kanan | x=0 y=124 rot=-4 z=10 cermin=1 tunjuk=1 ayun=7 fasa=3.7\nctx.beginPath(); ctx.moveTo(-21,6); ctx.lineTo(21,6); ctx.lineTo(17,104); ctx.quadraticCurveTo(16,112,8,112); ctx.lineTo(-8,112); ctx.quadraticCurveTo(-16,112,-17,104); ctx.closePath();\nctx.fillStyle=lin(-21,0,21,0,P.metal); ctx.fill(); ctx.stroke();\nctx.fillStyle=P.dark; rr(-19,60,38,14,5); ctx.fill(); ctx.stroke();\nctx.beginPath(); ctx.arc(0,0,25,0,7); ctx.fillStyle=rad(-8,-9,3,0,0,26,[P.metal[1],P.metal[2],P.metal[3]]); ctx.fill(); ctx.stroke();\nbolt(0,0,5);\n#bahagian tangan_kanan | Tangan Kanan | induk=lengan_bawah_kanan | x=0 y=108 rot=0 z=11 cermin=1 tunjuk=1 ayun=0 fasa=0\nrr(-17,-4,34,18,6); ctx.fillStyle=P.dark; ctx.fill(); ctx.stroke();\nrr(-24,12,48,40,14); ctx.fillStyle=lin(-24,0,24,0,P.metal); ctx.fill(); ctx.stroke();\nctx.fillStyle=P.metal[2];\nrr(-22,46,19,34,8); ctx.fill(); ctx.stroke();\nrr(3,46,19,34,8); ctx.fill(); ctx.stroke();\n#bahagian paha_kiri | Paha Kiri | induk=pinggang | x=-46 y=24 rot=2 z=2 cermin=0 tunjuk=1 ayun=14 fasa=3.1416\nrr(-27,10,54,122,20); ctx.fillStyle=lin(-27,0,27,0,P.metal); ctx.fill(); ctx.stroke();\nctx.fillStyle=P.accent; rr(-29,70,58,16,6); ctx.fill(); ctx.stroke();\nctx.beginPath(); ctx.arc(0,0,32,0,7); ctx.fillStyle=rad(-10,-12,4,0,0,34,[P.metal[1],P.metal[2],P.metal[3]]); ctx.fill(); ctx.stroke();\nbolt(0,0,6);\n#bahagian betis_kiri | Betis Kiri | induk=paha_kiri | x=0 y=132 rot=0 z=3 cermin=0 tunjuk=1 ayun=0 fasa=0\nctx.beginPath(); ctx.moveTo(-25,8); ctx.lineTo(25,8); ctx.lineTo(20,122); ctx.quadraticCurveTo(19,130,10,130); ctx.lineTo(-10,130); ctx.quadraticCurveTo(-19,130,-20,122); ctx.closePath();\nctx.fillStyle=lin(-25,0,25,0,P.metal); ctx.fill(); ctx.stroke();\nrr(-17,50,34,38,8); ctx.fillStyle=P.dark; ctx.fill(); ctx.stroke();\nctx.lineWidth=3;\nfor(let i=0;i<3;i++){ ctx.beginPath(); ctx.moveTo(-11,60+i*11); ctx.lineTo(11,60+i*11); ctx.stroke(); }\nctx.lineWidth=4;\nctx.beginPath(); ctx.arc(0,0,28,0,7); ctx.fillStyle=rad(-9,-10,3,0,0,30,[P.metal[1],P.metal[2],P.metal[3]]); ctx.fill(); ctx.stroke();\nbolt(0,0,5);\n#bahagian kaki_kiri | Kaki Kiri | induk=betis_kiri | x=0 y=128 rot=0 z=4 cermin=0 tunjuk=1 ayun=0 fasa=0\nrr(-22,-8,44,26,8); ctx.fillStyle=P.dark; ctx.fill(); ctx.stroke();\nrr(-42,6,84,46,18); ctx.fillStyle=lin(-42,0,42,0,P.metal); ctx.fill(); ctx.stroke();\nctx.fillStyle=P.accent; rr(-42,34,84,18,9); ctx.fill(); ctx.stroke();\nbolt(-26,20,4); bolt(26,20,4);\n#bahagian paha_kanan | Paha Kanan | induk=pinggang | x=46 y=24 rot=-2 z=2 cermin=1 tunjuk=1 ayun=14 fasa=0\nrr(-27,10,54,122,20); ctx.fillStyle=lin(-27,0,27,0,P.metal); ctx.fill(); ctx.stroke();\nctx.fillStyle=P.accent; rr(-29,70,58,16,6); ctx.fill(); ctx.stroke();\nctx.beginPath(); ctx.arc(0,0,32,0,7); ctx.fillStyle=rad(-10,-12,4,0,0,34,[P.metal[1],P.metal[2],P.metal[3]]); ctx.fill(); ctx.stroke();\nbolt(0,0,6);\n#bahagian betis_kanan | Betis Kanan | induk=paha_kanan | x=0 y=132 rot=0 z=3 cermin=1 tunjuk=1 ayun=0 fasa=0\nctx.beginPath(); ctx.moveTo(-25,8); ctx.lineTo(25,8); ctx.lineTo(20,122); ctx.quadraticCurveTo(19,130,10,130); ctx.lineTo(-10,130); ctx.quadraticCurveTo(-19,130,-20,122); ctx.closePath();\nctx.fillStyle=lin(-25,0,25,0,P.metal); ctx.fill(); ctx.stroke();\nrr(-17,50,34,38,8); ctx.fillStyle=P.dark; ctx.fill(); ctx.stroke();\nctx.lineWidth=3;\nfor(let i=0;i<3;i++){ ctx.beginPath(); ctx.moveTo(-11,60+i*11); ctx.lineTo(11,60+i*11); ctx.stroke(); }\nctx.lineWidth=4;\nctx.beginPath(); ctx.arc(0,0,28,0,7); ctx.fillStyle=rad(-9,-10,3,0,0,30,[P.metal[1],P.metal[2],P.metal[3]]); ctx.fill(); ctx.stroke();\nbolt(0,0,5);\n#bahagian kaki_kanan | Kaki Kanan | induk=betis_kanan | x=0 y=128 rot=0 z=4 cermin=1 tunjuk=1 ayun=0 fasa=0\nrr(-22,-8,44,26,8); ctx.fillStyle=P.dark; ctx.fill(); ctx.stroke();\nrr(-42,6,84,46,18); ctx.fillStyle=lin(-42,0,42,0,P.metal); ctx.fill(); ctx.stroke();\nctx.fillStyle=P.accent; rr(-42,34,84,18,9); ctx.fill(); ctx.stroke();\nbolt(-26,20,4); bolt(26,20,4);\n";
+var GIT_URLS=["https://raw.githubusercontent.com/zarouqs-rgb/jambatan/main/robot.txt","https://cdn.jsdelivr.net/gh/zarouqs-rgb/jambatan@main/robot.txt"];
+var W=1000,H=1200,DEG=Math.PI/180,STILL_T=0.9,SPEED=5.6;
+var PAL_DEF={metal:['#7d8ba1','#e3eaf3','#adb9ca','#5f6e84'],dark:'#222b3b',mid:'#46526b',accent:'#ff8a2a',accent2:'#ffc15e',glow:'#35e6ff',outline:'#151b27'};
+var PARTS=[],PALKOD="return {};",PAL=PAL_DEF,palErr="",sel=null,idc=1;
+var S={bg:'studio',bayang:true,label:true,sendi:true,png:2};
+var E=0,Etarget=0,anim=false,tAnim=0,lastTs=0,need=true,lastPos=[];
+var $=function(i){return document.getElementById(i)};
+var cv=$('cv'),cx=cv.getContext('2d');
+
+function num(v){v=parseFloat(v);return isFinite(v)?v:0}
+function rnd(v){return Math.round(num(v)*1000)/1000}
+function status(m){$('st').textContent=m||''}
+
+/* ---------- penghurai skrip ---------- */
+function parseScript(txt){
+  var lines=String(txt).replace(/\r/g,'').split('\n'),out={palet:null,parts:[]},cur=null,i,m;
+  for(i=0;i<lines.length;i++){
+    m=/^#(palet|bahagian)\b(.*)$/.exec(lines[i]);
+    if(m){
+      if(m[1]==='palet'){cur={buf:[]};out.palet=cur}
+      else{var seg=m[2].split('|');cur={id:(seg[0]||'').trim(),nama:(seg[1]||'').trim(),kv:seg.slice(2).join('|'),buf:[]};out.parts.push(cur)}
+      continue;
+    }
+    if(cur)cur.buf.push(lines[i]);
+  }
+  return out;
+}
+function mkPart(raw){
+  var p={id:String(raw.id||'').replace(/[^\w]/g,'_'),nama:raw.nama||'',induk:'',x:0,y:0,rot:0,z:0,cermin:false,tunjuk:true,ayun:0,fasa:0,kod:raw.buf.join('\n').replace(/^\n+|\s+$/g,'')};
+  if(!p.id)p.id='b'+(idc++);
+  if(!p.nama)p.nama=p.id;
+  raw.kv.replace(/(\w+)=(\S*)/g,function(_,k,v){
+    if(k==='induk')p.induk=v.replace(/[^\w]/g,'_');
+    else if(k==='cermin')p.cermin=v==='1'||v==='true';
+    else if(k==='tunjuk')p.tunjuk=!(v==='0'||v==='false');
+    else if(k in p)p[k]=num(v);
+    return _;
+  });
+  compile(p);
+  return p;
+}
+function toScript(){
+  var s='#palet\n'+PALKOD.replace(/\s+$/,'')+'\n';
+  PARTS.forEach(function(p){
+    s+='#bahagian '+p.id+' | '+String(p.nama).replace(/\|/g,'/')+' | induk='+p.induk+' x='+rnd(p.x)+' y='+rnd(p.y)+' rot='+rnd(p.rot)+' z='+rnd(p.z)+' cermin='+(p.cermin?1:0)+' tunjuk='+(p.tunjuk?1:0)+' ayun='+rnd(p.ayun)+' fasa='+rnd(p.fasa)+'\n'+p.kod.replace(/\s+$/,'')+'\n';
+  });
+  return s;
+}
+function loadScript(txt,merge){
+  var o=parseScript(txt);
+  if(!o.parts.length&&!o.palet)throw new Error('Skrip kosong. Perlu ada #palet atau #bahagian.');
+  if(o.palet){PALKOD=o.palet.buf.join('\n').replace(/^\n+|\s+$/g,'');compilePal()}
+  var np=o.parts.map(mkPart);
+  if(merge){
+    np.forEach(function(p){var k=PARTS.findIndex(function(q){return q.id===p.id});if(k>=0)PARTS[k]=p;else PARTS.push(p)});
+  }else if(np.length){PARTS=np}
+  if(!PARTS.some(function(p){return p.id===sel}))sel=PARTS.length?PARTS[0].id:null;
+  refreshAll();save();
+  return np.length;
+}
+
+/* ---------- kompil ---------- */
+function compile(p){
+  p.fn=null;p.err='';p.rerr='';
+  try{p.fn=new Function('ctx','P','t','rr','lin','rad','bolt',p.kod)}catch(e){p.err='Sintaks: '+e.message}
+}
+function compilePal(){
+  try{var o=new Function(PALKOD)();if(!o||typeof o!=='object')throw new Error('Palet mesti return satu objek');PAL=Object.assign({},PAL_DEF,o);palErr=''}
+  catch(e){palErr=e.message}
+  $('palErr').textContent=palErr;
+}
+function helpers(ctx,P){
+  function rr(x,y,w,h,r){r=Math.max(0,Math.min(r||0,Math.abs(w)/2,Math.abs(h)/2));ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath()}
+  function stops(g,c){if(!Array.isArray(c))c=[c,c];c.forEach(function(col,i){g.addColorStop(c.length>1?i/(c.length-1):0,col)});return g}
+  function lin(x0,y0,x1,y1,c){return stops(ctx.createLinearGradient(x0,y0,x1,y1),c)}
+  function rad(x0,y0,r0,x1,y1,r1,c){return stops(ctx.createRadialGradient(x0,y0,r0,x1,y1,r1),c)}
+  function bolt(x,y,r){r=r||5;ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=P.mid;ctx.fill();ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.moveTo(x-r*.5,y-r*.5);ctx.lineTo(x+r*.5,y+r*.5);ctx.stroke();ctx.restore()}
+  return {rr:rr,lin:lin,rad:rad,bolt:bolt};
+}
+
+/* ---------- susun sendi ---------- */
+function world(t){
+  var pm={},memo={},busy={};
+  PARTS.forEach(function(p){pm[p.id]=p});
+  var bob=anim?-Math.abs(Math.sin(t*SPEED))*8:0;
+  function w(p){
+    if(memo[p.id])return memo[p.id];
+    busy[p.id]=1;
+    var a0=(p.rot+(anim?(p.ayun||0)*Math.sin(t*SPEED+(p.fasa||0)):0))*DEG,par=pm[p.induk],r;
+    if(par&&par!==p&&!busy[par.id]){var q=w(par),c=Math.cos(q.a),s=Math.sin(q.a);r={x:q.x+p.x*c-p.y*s,y:q.y+p.x*s+p.y*c,a:q.a+a0}}
+    else r={x:p.x,y:p.y+bob,a:a0};
+    busy[p.id]=0;memo[p.id]=r;return r;
+  }
+  return PARTS.map(function(p){var r=w(p);return {p:p,x:r.x,y:r.y,a:r.a}});
+}
+
+/* ---------- lukis ---------- */
+function drawBg(ctx,bg,preview){
+  if(bg==='tembus'){
+    if(preview){ctx.fillStyle='#1b2030';ctx.fillRect(0,0,W,H);ctx.fillStyle='#2a3042';for(var y=0;y<H;y+=40)for(var x=((y/40)%2)*40;x<W;x+=80)ctx.fillRect(x,y,40,40)}
+    return;
+  }
+  var g=ctx.createLinearGradient(0,0,0,H);
+  if(bg==='terang'){g.addColorStop(0,'#f4f7fb');g.addColorStop(1,'#cfd8e6')}
+  else{g.addColorStop(0,'#232c42');g.addColorStop(1,'#0b0e16')}
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+}
+function render(ctx,o){
+  var P=PAL,e=o.e,L=world(o.t),i,n=L.length;
+  ctx.setTransform(o.scale,0,0,o.scale,0,0);
+  ctx.clearRect(0,0,W,H);
+  drawBg(ctx,o.bg,o.preview);
+  var cyy=0;for(i=0;i<n;i++)cyy+=L[i].y;cyy=n?cyy/n:H/2;
+  var fx=1+1.9*e,fy=1+1.1*e,s=1/(1+0.6*e);
+  function vx(x){return 500+((500+(x-500)*fx)-500)*s}
+  function vy(y){return cyy+((cyy+(y-cyy)*fy)-cyy)*s}
+  if(o.bayang&&o.bg!=='tembus'||o.bayang&&!o.preview){
+    ctx.save();ctx.globalAlpha=0.35*(1-Math.min(1,e*3));
+    ctx.fillStyle=o.bg==='terang'?'#6b7690':'#000';ctx.beginPath();ctx.ellipse(500,1068,250,26,0,0,7);ctx.fill();ctx.restore();
+  }
+  var order=L.map(function(r,k){r.k=k;return r}).filter(function(r){return r.p.tunjuk}).sort(function(a,b){return (a.p.z-b.p.z)||(a.k-b.k)});
+  var Hh=helpers(ctx,P);
+  order.forEach(function(r){
+    var p=r.p;
+    ctx.save();
+    ctx.translate(vx(r.x),vy(r.y));ctx.scale(s,s);ctx.rotate(r.a*(1-e));
+    if(p.cermin)ctx.scale(-1,1);
+    ctx.lineWidth=4;ctx.strokeStyle=P.outline;ctx.fillStyle='#888';ctx.lineJoin='round';ctx.lineCap='round';ctx.shadowBlur=0;ctx.globalAlpha=1;
+    if(p.fn){
+      try{p.fn(ctx,P,o.t,Hh.rr,Hh.lin,Hh.rad,Hh.bolt);if(p.rerr){p.rerr='';o.dirtyErr=1}}
+      catch(err){ctx.restore();ctx.save();ctx.translate(vx(r.x),vy(r.y));ctx.scale(s,s);ctx.setLineDash([8,6]);ctx.strokeStyle='#ff5c6c';ctx.lineWidth=3;ctx.strokeRect(-36,-36,72,72);ctx.beginPath();ctx.moveTo(-36,-36);ctx.lineTo(36,36);ctx.moveTo(36,-36);ctx.lineTo(-36,36);ctx.stroke();
+        var m=String(err&&err.message||err);if(p.rerr!==m){p.rerr=m;o.dirtyErr=1}}
+    }else{
+      ctx.setLineDash([8,6]);ctx.strokeStyle='#ff5c6c';ctx.lineWidth=3;ctx.strokeRect(-36,-36,72,72);
+    }
+    ctx.restore();
+  });
+  if(o.guides||o.labels){
+    lastPos=[];
+    L.forEach(function(r){lastPos.push({id:r.p.id,x:vx(r.x),y:vy(r.y),on:r.p.tunjuk})});
+    if(o.labels&&e>0.05){
+      ctx.save();ctx.font='600 20px system-ui,sans-serif';ctx.textBaseline='middle';ctx.globalAlpha=Math.min(1,e*2);
+      L.forEach(function(r){if(!r.p.tunjuk)return;var X=vx(r.x),Y=vy(r.y);ctx.fillStyle='#35e6ff';ctx.beginPath();ctx.arc(X,Y,5,0,7);ctx.fill();ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,.75)';ctx.strokeText(r.p.nama,X+10,Y-14);ctx.fillStyle='#fff';ctx.fillText(r.p.nama,X+10,Y-14)});
+      ctx.restore();
+    }
+    if(o.guides&&o.sel){
+      L.forEach(function(r){if(r.p.id!==o.sel)return;var X=vx(r.x),Y=vy(r.y);ctx.save();ctx.lineWidth=3;ctx.strokeStyle='#ff8a2a';ctx.beginPath();ctx.arc(X,Y,16,0,7);ctx.moveTo(X-26,Y);ctx.lineTo(X+26,Y);ctx.moveTo(X,Y-26);ctx.lineTo(X,Y+26);ctx.stroke();ctx.restore()});
+    }
+  }
+}
+function curT(){return anim?tAnim:STILL_T}
+function draw(){
+  var o={scale:1,bg:S.bg,preview:true,guides:S.sendi,labels:S.label,t:curT(),e:E,bayang:S.bayang,sel:sel};
+  render(cx,o);
+  if(o.dirtyErr)updateErrs();
+}
+function loop(ts){
+  var dt=lastTs?Math.min(0.1,(ts-lastTs)/1000):0;lastTs=ts;
+  if(anim){tAnim+=dt;need=true}
+  if(Math.abs(Etarget-E)>0.002){E+=(Etarget-E)*Math.min(1,dt*7);need=true;$('sl').value=Math.round(E*100)}
+  else if(E!==Etarget){E=Etarget;need=true;$('sl').value=Math.round(E*100)}
+  if(need){need=false;draw()}
+  requestAnimationFrame(loop);
+}
+
+/* ---------- UI ---------- */
+function curPart(){for(var i=0;i<PARTS.length;i++)if(PARTS[i].id===sel)return PARTS[i];return null}
+function renderChips(){
+  var c=$('chips');c.innerHTML='';
+  PARTS.forEach(function(p){
+    var b=document.createElement('button');b.className='chip'+(p.id===sel?' sel':'')+((p.err||p.rerr)?' err':'')+(p.tunjuk?'':' off');b.textContent=p.nama;b.dataset.id=p.id;
+    b.onclick=function(){sel=p.id;renderChips();loadEditor();need=true};
+    c.appendChild(b);
+  });
+}
+function loadEditor(){
+  var p=curPart(),dis=!p;
+  ['fNama','fInduk','fX','fY','fRot','fZ','fAyun','fFasa','fCermin','fTunjuk','kod'].forEach(function(i){$(i).disabled=dis});
+  if(!p){$('kod').value='';$('kodErr').textContent='';return}
+  $('fNama').value=p.nama;
+  var s=$('fInduk');s.innerHTML='';
+  var o0=document.createElement('option');o0.value='';o0.textContent='(akar, kedudukan tetap)';s.appendChild(o0);
+  PARTS.forEach(function(q){if(q.id===p.id)return;var o=document.createElement('option');o.value=q.id;o.textContent=q.nama;s.appendChild(o)});
+  s.value=p.induk;
+  $('fX').value=rnd(p.x);$('fY').value=rnd(p.y);$('fRot').value=rnd(p.rot);$('fZ').value=rnd(p.z);$('fAyun').value=rnd(p.ayun);$('fFasa').value=rnd(p.fasa);
+  $('fCermin').checked=!!p.cermin;$('fTunjuk').checked=!!p.tunjuk;
+  $('kod').value=p.kod;updateErrs();
+}
+function updateErrs(){
+  var p=curPart();
+  $('kodErr').textContent=p?(p.err||(p.rerr?'Ralat semasa lukis: '+p.rerr:'')):'';
+  var cs=$('chips').children,i;
+  for(i=0;i<cs.length;i++){var q=PARTS[i];if(q)cs[i].classList.toggle('err',!!(q.err||q.rerr))}
+}
+function refreshAll(){renderChips();loadEditor();$('pal').value=PALKOD;$('palErr').textContent=palErr;need=true}
+var saveT=null;
+function save(){
+  clearTimeout(saveT);
+  saveT=setTimeout(function(){try{localStorage.setItem('makmal_robot_v1',toScript())}catch(e){}},500);
+}
+function bindField(id,fn){
+  $(id).addEventListener('input',function(){var p=curPart();if(!p)return;fn(p,this);need=true;save()});
+  $(id).addEventListener('change',function(){var p=curPart();if(!p)return;fn(p,this);need=true;save()});
+}
+bindField('fNama',function(p,el){p.nama=el.value;var b=$('chips').querySelector('[data-id="'+p.id+'"]');if(b)b.textContent=p.nama||p.id});
+bindField('fInduk',function(p,el){p.induk=el.value});
+bindField('fX',function(p,el){p.x=num(el.value)});
+bindField('fY',function(p,el){p.y=num(el.value)});
+bindField('fRot',function(p,el){p.rot=num(el.value)});
+bindField('fZ',function(p,el){p.z=num(el.value)});
+bindField('fAyun',function(p,el){p.ayun=num(el.value)});
+bindField('fFasa',function(p,el){p.fasa=num(el.value)});
+bindField('fCermin',function(p,el){p.cermin=el.checked});
+bindField('fTunjuk',function(p,el){p.tunjuk=el.checked;renderChips()});
+$('kod').addEventListener('input',function(){var p=curPart();if(!p)return;p.kod=this.value;compile(p);updateErrs();need=true;save()});
+$('pal').addEventListener('input',function(){PALKOD=this.value;compilePal();need=true;save()});
+function tabKey(ev){if(ev.key==='Tab'&&!ev.shiftKey){ev.preventDefault();var t=ev.target,a=t.selectionStart,b=t.selectionEnd;t.value=t.value.slice(0,a)+'  '+t.value.slice(b);t.selectionStart=t.selectionEnd=a+2;t.dispatchEvent(new Event('input'))}}
+['kod','pal','scr'].forEach(function(i){$(i).addEventListener('keydown',tabKey)});
+
+[].forEach.call(document.querySelectorAll('.tabs button'),function(b){
+  b.onclick=function(){
+    [].forEach.call(document.querySelectorAll('.tabs button'),function(x){x.classList.toggle('on',x===b)});
+    [].forEach.call(document.querySelectorAll('.pane'),function(x){x.classList.toggle('on',x.id===b.dataset.tab)});
+    if(b.dataset.tab==='t3'&&!$('scr').value)$('scr').value=toScript();
+  };
+});
+
+$('bPecah').onclick=function(){Etarget=1;need=true};
+$('bCantum').onclick=function(){Etarget=0;need=true};
+$('sl').addEventListener('input',function(){E=Etarget=num(this.value)/100;need=true});
+$('bAyun').onclick=function(){anim=!anim;this.classList.toggle('on',anim);if(!anim)tAnim=0;need=true};
+
+$('bBaru').onclick=function(){
+  var id='b'+(idc++);while(PARTS.some(function(p){return p.id===id}))id='b'+(idc++);
+  var p={id:id,nama:'Bahagian '+id,induk:sel||'',x:0,y:0,rot:0,z:5,cermin:false,tunjuk:true,ayun:0,fasa:0,kod:"rr(-30,-30,60,60,12); ctx.fillStyle=lin(-30,0,30,0,P.metal); ctx.fill(); ctx.stroke();"};
+  compile(p);PARTS.push(p);sel=p.id;refreshAll();save();
+};
+$('bSalin').onclick=function(){
+  var p=curPart();if(!p)return;
+  var id=p.id+'_'+(idc++);var q=Object.assign({},p,{id:id,nama:p.nama+' salinan'});compile(q);PARTS.push(q);sel=id;refreshAll();save();
+};
+$('bPadam').onclick=function(){
+  var p=curPart();if(!p)return;
+  PARTS=PARTS.filter(function(q){return q.id!==p.id});
+  PARTS.forEach(function(q){if(q.induk===p.id)q.induk=p.induk||''});
+  sel=PARTS.length?PARTS[0].id:null;refreshAll();save();
+};
+
+function copyText(t){
+  function fb(){var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();var ok=false;try{ok=document.execCommand('copy')}catch(e){}a.remove();return ok}
+  if(navigator.clipboard&&navigator.clipboard.writeText){return navigator.clipboard.writeText(t).then(function(){return true},function(){return fb()})}
+  return Promise.resolve(fb());
+}
+function doLoad(merge){
+  try{var n=loadScript($('scr').value,merge);$('scrErr').textContent='';status((merge?'Gabung: ':'Ganti: ')+n+' bahagian dimuat.')}
+  catch(e){$('scrErr').textContent=e.message}
+}
+$('bGanti').onclick=function(){doLoad(false)};
+$('bGabung').onclick=function(){doLoad(true)};
+$('bAmbil').onclick=function(){$('scr').value=toScript();status('Skrip semasa diambil.')};
+$('bSalinSkrip').onclick=function(){var t=toScript();$('scr').value=t;copyText(t).then(function(ok){status(ok?'Skrip disalin.':'Tak dapat salin. Pilih teks dan salin sendiri.')})};
+$('bGit').onclick=function(){
+  status('Memuat robot.txt dari GitHub…');
+  (function go(i){
+    if(i>=GIT_URLS.length){status('Gagal memuat dari GitHub.');return}
+    fetch(GIT_URLS[i]+'?t='+Date.now()).then(function(r){if(!r.ok)throw 0;return r.text()}).then(function(t){
+      $('scr').value=t;var n=loadScript(t,false);status('Dimuat dari GitHub: '+n+' bahagian.')
+    },function(){go(i+1)});
+  })(0);
+};
+$('bSet').onclick=function(){loadScript(DEFAULT_SCRIPT,false);$('scr').value='';status('Robot asal dipulihkan.')};
+
+['sBg','sPng'].forEach(function(i){$(i).addEventListener('change',function(){S.bg=$('sBg').value;S.png=+$('sPng').value;need=true})});
+[['sBayang','bayang'],['sLabel','label'],['sSendi','sendi']].forEach(function(a){$(a[0]).addEventListener('change',function(){S[a[1]]=this.checked;need=true})});
+
+cv.addEventListener('pointerdown',function(ev){
+  var r=cv.getBoundingClientRect(),x=(ev.clientX-r.left)/r.width*W,y=(ev.clientY-r.top)/r.height*H,best=null,bd=60*60;
+  lastPos.forEach(function(q){if(!q.on)return;var d=(q.x-x)*(q.x-x)+(q.y-y)*(q.y-y);if(d<bd){bd=d;best=q}});
+  if(best){sel=best.id;renderChips();loadEditor();need=true}
+});
+
+$('bPng').onclick=function(){
+  var sc=S.png,c=document.createElement('canvas');c.width=W*sc;c.height=H*sc;
+  render(c.getContext('2d'),{scale:sc,bg:S.bg,preview:false,guides:false,labels:false,t:curT(),e:E,bayang:S.bayang,sel:null});
+  c.toBlob(function(b){
+    if(!b){status('Gagal cipta PNG.');return}
+    var url=URL.createObjectURL(b),im=$('outimg');im.src=url;im.style.display='block';
+    var a=document.createElement('a');a.href=url;a.download='robot.png';document.body.appendChild(a);a.click();a.remove();
+    status('PNG siap ('+c.width+'×'+c.height+'). Kalau tak turun sendiri, tekan lama gambar di bawah untuk simpan.');
+  },'image/png');
+};
+
+/* ---------- mula ---------- */
+compilePal();
+var started=false;
+try{var sv=localStorage.getItem('makmal_robot_v1');if(sv&&sv.indexOf('#bahagian')>=0){loadScript(sv,false);started=true;status('Kerja terakhir dipulihkan. Tab Tetapan > Set semula untuk robot asal.')}}catch(e){}
+if(!started)loadScript(DEFAULT_SCRIPT,false);
+window.MakmalRobot={load:function(t,m){return loadScript(t,!!m)},script:toScript,parts:function(){return PARTS},pecah:function(v){Etarget=v?1:0;need=true},render:function(){need=true}};
+requestAnimationFrame(loop);
+})();
+</script>
+</body></html>
