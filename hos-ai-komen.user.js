@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hos AI - Komen TikTok
 // @namespace    https://github.com/zarouqs-rgb/jambatan
-// @version      1.4
+// @version      1.5
 // @description  Baca komen LIVE TikTok (baca sahaja) dan hantar ke app Hos AI Live dalam Gemini Canvas.
 // @match        https://www.tiktok.com/*
 // @match        https://gemini.google.com/*
@@ -61,10 +61,11 @@
     btn.style.cssText = 'position:fixed;right:8px;bottom:34px;z-index:2147483647;background:#111c;color:#9fe;' +
       'font:11px sans-serif;padding:4px 8px;border:1px solid #9fe6;border-radius:6px;cursor:pointer';
     document.documentElement.appendChild(btn);
-    var capTimer = null, capStream = null;
+    var capTimer = null, capStream = null, prevBox = null;
     var stopCap = function () {
       if (capTimer) clearInterval(capTimer); capTimer = null;
       if (capStream) capStream.getTracks().forEach(function (t) { t.stop(); }); capStream = null;
+      if (prevBox) { prevBox.remove(); prevBox = null; }
       btn.textContent = '📷 Tangkap komen';
     };
     btn.onclick = async function () {
@@ -113,6 +114,18 @@
         var tc = tiny.getContext('2d', { willReadFrequently: true });
         var prev = null, sent = null, same = 0;
         btn.textContent = '⏹ Berhenti tangkap';
+        /* pratonton kecil, boleh diseret ke mana-mana */
+        prevBox = document.createElement('div');
+        prevBox.style.cssText = 'position:fixed;right:16px;bottom:70px;z-index:2147483647;background:#000;border:2px solid #9fe;border-radius:8px;cursor:move;box-shadow:0 2px 12px #000a';
+        var bar = document.createElement('div');
+        bar.textContent = '📷 komen ditangkap (seret saya)';
+        bar.style.cssText = 'font:10px sans-serif;color:#9fe;padding:2px 6px;user-select:none';
+        cvs.style.cssText = 'display:block;width:240px;height:auto';
+        prevBox.appendChild(bar); prevBox.appendChild(cvs); document.documentElement.appendChild(prevBox);
+        var dx = 0, dy = 0, mv = false;
+        prevBox.onmousedown = function (e) { var b = prevBox.getBoundingClientRect(); dx = e.clientX - b.left; dy = e.clientY - b.top; mv = true; e.preventDefault(); };
+        document.addEventListener('mousemove', function (e) { if (!mv || !prevBox) return; prevBox.style.left = (e.clientX - dx) + 'px'; prevBox.style.top = (e.clientY - dy) + 'px'; prevBox.style.right = 'auto'; prevBox.style.bottom = 'auto'; });
+        document.addEventListener('mouseup', function () { mv = false; });
         setG('Hos AI: menangkap panel komen');
         capTimer = setInterval(function () {
           if (v.readyState < 2) return;
