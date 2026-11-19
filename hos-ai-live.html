@@ -374,7 +374,21 @@ function speakBrowser(text){
   });
 }
 let caption='',captionUntil=0,state='idle',curComment=null,commentUntil=0,skipGen=0,pendingCap=null;
-function showCap(){if(pendingCap!==null){caption=pendingCap;captionUntil=Date.now()+1e9;state='talk';pendingCap=null}}
+let capTimers=[];
+function capChunks(t){
+  const out=[];let cur='';
+  t.split(/(?<=[.!?,;:])\s+/).forEach(p=>{const j=(cur+' '+p).trim();if(j.length<=80)cur=j;else{if(cur)out.push(cur);cur=p}});
+  if(cur)out.push(cur);
+  return out.flatMap(c=>{if(c.length<=95)return[c];const r=[];let l='';c.split(' ').forEach(x=>{const j=(l+' '+x).trim();if(j.length>80){r.push(l);l=x}else l=j});if(l)r.push(l);return r});
+}
+function showCap(){
+  if(pendingCap===null)return;
+  const full=pendingCap;pendingCap=null;state='talk';captionUntil=Date.now()+1e9;
+  capTimers.forEach(clearTimeout);capTimers=[];
+  const ch=capChunks(full);caption=ch[0]||full;
+  const total=Math.max(1,full.length),dur=total*70/(S.rate||1);let acc=ch.length?ch[0].length:0;
+  for(let i=1;i<ch.length;i++){const c=ch[i];capTimers.push(setTimeout(()=>{caption=c},dur*(acc/total)));acc+=c.length+1}
+}
 function noteGemErr(e){
   log('Suara Gemini gagal ('+(e.status||e.message)+'). Guna suara pelayar.');
   if(S.ttsMode==='auto')geminiCool=Date.now()+(e.status===429?90000:30000);
@@ -395,7 +409,7 @@ async function speak(text,pre){
   pendingCap=maskText(text);caption='';captionUntil=0;state='think';
   const g=skipGen;
   for(const sg of segs){if(g!==skipGen)break;await playSeg(sg)}
-  showCap();captionUntil=Date.now()+2200;commentUntil=Date.now()+2200;state='idle';
+  showCap();capTimers.forEach(clearTimeout);capTimers=[];captionUntil=Date.now()+2200;commentUntil=Date.now()+2200;state='idle';
 }
 function stopSpeech(){
   skipGen++;
@@ -518,7 +532,7 @@ function wrap(text,maxW){
 }
 function layout(){
   const v=S.orient==='v';
-  return v?{v,ax:W/2,ay:H*.445,sc:W/540*.66,capX:W*.05,capW:W*.90,capBottom:H*.965,capMaxH:H*.25,bubX:W*.06,bubW:W*.88,bubY:H*.075}
+  return v?{v,ax:W/2,ay:H*.445,sc:W/540*.66,capX:W*.05,capW:W*.90,capBottom:H*.30,capMaxH:H*.16,bubX:W*.06,bubW:W*.88,bubY:H*.075}
           :{v,ax:W*.27,ay:H*.46,sc:H/540*.68,capX:W*.50,capW:W*.46,capBottom:H*.90,capMaxH:H*.52,bubX:W*.50,bubW:W*.46,bubY:H*.07};
 }
 
