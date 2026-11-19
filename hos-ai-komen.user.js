@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hos AI - Komen TikTok
 // @namespace    https://github.com/zarouqs-rgb/jambatan
-// @version      1.6
+// @version      1.7
 // @description  Baca komen LIVE TikTok (baca sahaja) dan hantar ke app Hos AI Live dalam Gemini Canvas.
 // @match        https://www.tiktok.com/*
 // @match        https://gemini.google.com/*
@@ -76,6 +76,11 @@
       var v = document.createElement('video');
       v.muted = true; v.srcObject = capStream; await v.play();
       capStream.getVideoTracks()[0].onended = stopCap;
+      /* ambil satu gambar beku SEBELUM kotak pemilihan keluar (elak kesan cermin berganda) */
+      await new Promise(function (r) { setTimeout(r, 500); });
+      var sn = document.createElement('canvas');
+      sn.width = v.videoWidth; sn.height = v.videoHeight;
+      sn.getContext('2d').drawImage(v, 0, 0);
       /* pilih kawasan: seret kotak di atas pratonton */
       var ov = document.createElement('div');
       ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#000d;display:flex;flex-direction:column;align-items:center;justify-content:center;font:14px sans-serif;color:#fff';
@@ -83,16 +88,16 @@
       msg.textContent = 'Seret kotak di atas bahagian KOMEN sahaja, kemudian tekan Mula';
       msg.style.margin = '8px';
       var wrap = document.createElement('div'); wrap.style.cssText = 'position:relative;cursor:crosshair';
-      v.style.cssText = 'max-width:88vw;max-height:72vh;display:block';
+      sn.style.cssText = 'max-width:88vw;max-height:72vh;display:block';
       var box = document.createElement('div');
       box.style.cssText = 'position:absolute;border:2px solid #0f0;background:#0f02;display:none;pointer-events:none';
-      wrap.appendChild(v); wrap.appendChild(box);
+      wrap.appendChild(sn); wrap.appendChild(box);
       var go = document.createElement('button'); go.textContent = 'Mula'; go.style.cssText = 'margin:10px;padding:6px 18px;font-size:14px';
       var cancel = document.createElement('button'); cancel.textContent = 'Batal'; cancel.style.cssText = 'padding:6px 14px';
       var row = document.createElement('div'); row.appendChild(go); row.appendChild(cancel);
       ov.appendChild(msg); ov.appendChild(wrap); ov.appendChild(row); document.documentElement.appendChild(ov);
       var r = null, sx = 0, sy = 0, drag = false;
-      var pos = function (e) { var b = v.getBoundingClientRect(); return [Math.max(0, Math.min(b.width, e.clientX - b.left)), Math.max(0, Math.min(b.height, e.clientY - b.top))]; };
+      var pos = function (e) { var b = sn.getBoundingClientRect(); return [Math.max(0, Math.min(b.width, e.clientX - b.left)), Math.max(0, Math.min(b.height, e.clientY - b.top))]; };
       wrap.onmousedown = function (e) { var q = pos(e); sx = q[0]; sy = q[1]; drag = true; };
       wrap.onmousemove = function (e) {
         if (!drag) return; var q = pos(e);
@@ -104,7 +109,7 @@
       cancel.onclick = function () { ov.remove(); stopCap(); };
       go.onclick = function () {
         if (!r || r.w < 20 || r.h < 20) { msg.textContent = 'Seret kotak dahulu (kotak hijau)'; return; }
-        var b = v.getBoundingClientRect(), kx = v.videoWidth / b.width, ky = v.videoHeight / b.height;
+        var b = sn.getBoundingClientRect(), kx = sn.width / b.width, ky = sn.height / b.height;
         var cx = r.x * kx, cy = r.y * ky, cw = r.w * kx, ch = r.h * ky;
         ov.remove();
         var cvs = document.createElement('canvas'), sc = Math.min(1, 700 / cw);
