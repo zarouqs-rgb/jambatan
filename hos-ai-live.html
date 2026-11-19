@@ -506,11 +506,37 @@ function wsConnect(){
   w.onclose=()=>{if(w!==ws)return;wsTimer=setTimeout(wsConnect,5000)};
 }
 
+/* ---------- Komen dari tangkapan skrin (gambar dihantar skrip) ---------- */
+const seenImg=new Map();let imgBusy=false;
+async function readImg(url){
+  if(imgBusy||!running)return;imgBusy=true;
+  try{
+    const b64=url.split(',')[1];
+    const body={contents:[{role:'user',parts:[{inlineData:{mimeType:'image/jpeg',data:b64}},{text:'Ini tangkapan skrin panel sembang LIVE TikTok. Baca hanya mesej penonton sebenar (nama pengguna dan teks mesej). Abaikan baris "joined", "Welcome", "Encourage your viewers", hadiah, pengumuman dan elemen UI. Balas JSON sahaja: [{"user":"nama","text":"mesej"}]. Jika tiada mesej penonton, balas [].'}]}],
+      generationConfig:{temperature:0,maxOutputTokens:600,responseMimeType:'application/json',thinkingConfig:{thinkingBudget:0}}};
+    let j;try{j=await gem(S.textModel,body)}catch(e){if(e.status===400&&/thinking/i.test(e.detail||'')){delete body.generationConfig.thinkingConfig;j=await gem(S.textModel,body)}else throw e}
+    const t=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[]).map(p=>p.text||'').join('');
+    let arr=[];try{arr=JSON.parse(t)}catch(e){}
+    if(!Array.isArray(arr))arr=[];
+    const now=Date.now();
+    for(const [k,v] of seenImg)if(now-v>600000)seenImg.delete(k);
+    arr.slice(0,10).forEach(it=>{
+      if(!it||typeof it.text!=='string')return;
+      const user=String(it.user||'Penonton'),key=(user+'|'+it.text).toLowerCase();
+      if(seenImg.has(key))return;seenImg.set(key,now);
+      addComment(user,it.text);
+    });
+    if(arr.length&&!linkSeen){linkSeen=true;log('Tangkapan skrin komen berfungsi')}
+  }catch(e){log('Baca skrin gagal: '+(e.message||e),true)}
+  finally{imgBusy=false}
+}
+
 /* ---------- Komen dari skrip Chrome (pilihan) ---------- */
 let linkSeen=false;
 window.addEventListener('message',ev=>{
   const d=ev.data;if(!d||typeof d!=='object'||d.hosAiSrc!=='tm')return;
   if(d.hosAiPing&&!linkSeen){linkSeen=true;log('Skrip komen TikTok bersambung')}
+  if(typeof d.hosAiImg==='string'&&d.hosAiImg.indexOf('data:image/')===0)readImg(d.hosAiImg);
   if(Array.isArray(d.hosAiBatch)){
     d.hosAiBatch.slice(0,10).forEach(it=>{if(it&&typeof it.text==='string'){if(it.gift)addGift(String(it.user||'Penonton'),it.text);else addComment(String(it.user||'Penonton'),it.text)}});
   }

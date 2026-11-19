@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hos AI - Komen TikTok
 // @namespace    https://github.com/zarouqs-rgb/jambatan
-// @version      1.2
+// @version      1.3
 // @description  Baca komen LIVE TikTok (baca sahaja) dan hantar ke app Hos AI Live dalam Gemini Canvas.
 // @match        https://www.tiktok.com/*
 // @match        https://gemini.google.com/*
@@ -54,6 +54,85 @@
       if (!linked) { linked = true; setG('Hos AI: tersambung dengan TikTok'); }
       bc(window, { hosAiSrc: 'tm', hosAiPing: true }, 0);
     });
+
+    /* --- Tangkap panel komen dari skrin (contoh LIVE Studio), potong kawasan sendiri --- */
+    var btn = document.createElement('button');
+    btn.textContent = '📷 Tangkap komen';
+    btn.style.cssText = 'position:fixed;right:8px;bottom:34px;z-index:2147483647;background:#111c;color:#9fe;' +
+      'font:11px sans-serif;padding:4px 8px;border:1px solid #9fe6;border-radius:6px;cursor:pointer';
+    document.documentElement.appendChild(btn);
+    var capTimer = null, capStream = null;
+    var stopCap = function () {
+      if (capTimer) clearInterval(capTimer); capTimer = null;
+      if (capStream) capStream.getTracks().forEach(function (t) { t.stop(); }); capStream = null;
+      btn.textContent = '📷 Tangkap komen';
+    };
+    btn.onclick = async function () {
+      if (capStream) { stopCap(); return; }
+      try {
+        capStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      } catch (e) { setG('Hos AI: tangkap skrin dibatalkan'); return; }
+      var v = document.createElement('video');
+      v.muted = true; v.srcObject = capStream; await v.play();
+      capStream.getVideoTracks()[0].onended = stopCap;
+      /* pilih kawasan: seret kotak di atas pratonton */
+      var ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#000d;display:flex;flex-direction:column;align-items:center;justify-content:center;font:14px sans-serif;color:#fff';
+      var msg = document.createElement('div');
+      msg.textContent = 'Seret kotak di atas bahagian KOMEN sahaja, kemudian tekan Mula';
+      msg.style.margin = '8px';
+      var wrap = document.createElement('div'); wrap.style.cssText = 'position:relative;cursor:crosshair';
+      v.style.cssText = 'max-width:88vw;max-height:72vh;display:block';
+      var box = document.createElement('div');
+      box.style.cssText = 'position:absolute;border:2px solid #0f0;background:#0f02;display:none;pointer-events:none';
+      wrap.appendChild(v); wrap.appendChild(box);
+      var go = document.createElement('button'); go.textContent = 'Mula'; go.style.cssText = 'margin:10px;padding:6px 18px;font-size:14px';
+      var cancel = document.createElement('button'); cancel.textContent = 'Batal'; cancel.style.cssText = 'padding:6px 14px';
+      var row = document.createElement('div'); row.appendChild(go); row.appendChild(cancel);
+      ov.appendChild(msg); ov.appendChild(wrap); ov.appendChild(row); document.documentElement.appendChild(ov);
+      var r = null, sx = 0, sy = 0, drag = false;
+      var pos = function (e) { var b = v.getBoundingClientRect(); return [Math.max(0, Math.min(b.width, e.clientX - b.left)), Math.max(0, Math.min(b.height, e.clientY - b.top))]; };
+      wrap.onmousedown = function (e) { var q = pos(e); sx = q[0]; sy = q[1]; drag = true; };
+      wrap.onmousemove = function (e) {
+        if (!drag) return; var q = pos(e);
+        var x = Math.min(sx, q[0]), y = Math.min(sy, q[1]), w = Math.abs(q[0] - sx), h = Math.abs(q[1] - sy);
+        r = { x: x, y: y, w: w, h: h }; box.style.display = 'block';
+        box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.width = w + 'px'; box.style.height = h + 'px';
+      };
+      wrap.onmouseup = function () { drag = false; };
+      cancel.onclick = function () { ov.remove(); stopCap(); };
+      go.onclick = function () {
+        if (!r || r.w < 20 || r.h < 20) { msg.textContent = 'Seret kotak dahulu (kotak hijau)'; return; }
+        var b = v.getBoundingClientRect(), kx = v.videoWidth / b.width, ky = v.videoHeight / b.height;
+        var cx = r.x * kx, cy = r.y * ky, cw = r.w * kx, ch = r.h * ky;
+        ov.remove();
+        var cvs = document.createElement('canvas'), sc = Math.min(1, 700 / cw);
+        cvs.width = Math.round(cw * sc); cvs.height = Math.round(ch * sc);
+        var c2 = cvs.getContext('2d', { willReadFrequently: true });
+        var tiny = document.createElement('canvas'); tiny.width = 48; tiny.height = 48;
+        var tc = tiny.getContext('2d', { willReadFrequently: true });
+        var prev = null, sent = null, same = 0;
+        btn.textContent = '⏹ Berhenti tangkap';
+        setG('Hos AI: menangkap panel komen');
+        capTimer = setInterval(function () {
+          if (v.readyState < 2) return;
+          c2.drawImage(v, cx, cy, cw, ch, 0, 0, cvs.width, cvs.height);
+          tc.drawImage(cvs, 0, 0, 48, 48);
+          var d = tc.getImageData(0, 0, 48, 48).data, h = [];
+          for (var i = 0; i < d.length; i += 16) h.push(d[i] >> 4);
+          var cur = h.join('');
+          var diff = 0;
+          if (prev) for (var k = 0; k < cur.length; k++) if (cur[k] !== prev[k]) diff++;
+          prev = cur;
+          if (diff > 8) { same = 0; return; }       /* masih bergerak */
+          same++;
+          if (same < 2 || cur === sent) return;     /* tunggu berhenti 2 kali, jangan hantar sama */
+          sent = cur;
+          bc(window, { hosAiSrc: 'tm', hosAiImg: cvs.toDataURL('image/jpeg', 0.7) }, 0);
+          setG('Hos AI: gambar komen dihantar');
+        }, 1500);
+      };
+    };
     return;
   }
 
