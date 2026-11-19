@@ -72,7 +72,7 @@ body.clean #stage{border-radius:0}
         <button id="cSend">Hantar</button>
       </div>
       <textarea id="cBulk" rows="3" placeholder="Tampal banyak komen. Satu baris satu komen. Format: nama: komen"></textarea>
-      <div class="row"><button id="cBulkBtn">Tambah ke giliran</button><button id="cDemo">Komen ujian</button></div>
+      <div class="row"><button id="cBulkBtn">Tambah ke giliran</button><button id="cDemo">Komen ujian</button><button id="cClear">Kosongkan giliran</button></div>
       <div id="queue"></div>
       <div class="hint" id="stats"></div>
     </details>
@@ -597,6 +597,7 @@ $('#bClean').onclick=()=>{document.body.classList.add('clean');fit();window.scro
 $('#bOrient').onclick=()=>{S.orient=S.orient==='v'?'h':'v';save();applyUI()};
 $('#bMute').onclick=()=>{muted=!muted;if(gain)gain.gain.value=muted?0:1;applyUI()};
 $('#bSkip').onclick=stopSpeech;
+$('#cClear').onclick=()=>{queue.length=0;renderQueue();log('Giliran komen dikosongkan')};
 $('#bStart').onclick=async()=>{
   await ensureAudio().catch(()=>{});
   running=!running;applyUI();
