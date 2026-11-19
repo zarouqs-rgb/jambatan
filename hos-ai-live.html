@@ -426,6 +426,17 @@ function wsConnect(){
   w.onclose=()=>{if(w!==ws)return;wsTimer=setTimeout(wsConnect,5000)};
 }
 
+/* ---------- Komen dari skrip Chrome (pilihan) ---------- */
+let linkSeen=false;
+window.addEventListener('message',ev=>{
+  if(ev.source!==window)return;
+  const d=ev.data;if(!d||typeof d!=='object')return;
+  if(d.hosAiPing&&!linkSeen){linkSeen=true;log('Skrip komen TikTok bersambung')}
+  if(Array.isArray(d.hosAiBatch)){
+    d.hosAiBatch.slice(0,10).forEach(it=>{if(it&&typeof it.text==='string')addComment(String(it.user||'Penonton'),it.text)});
+  }
+});
+
 /* ---------- Lukisan ---------- */
 const cv=$('#stage'),ctx=cv.getContext('2d');
 let W=720,H=1280,mouth=0,t0=performance.now();
