@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hos AI - Komen TikTok
 // @namespace    https://github.com/zarouqs-rgb/jambatan
-// @version      1.3
+// @version      1.4
 // @description  Baca komen LIVE TikTok (baca sahaja) dan hantar ke app Hos AI Live dalam Gemini Canvas.
 // @match        https://www.tiktok.com/*
 // @match        https://gemini.google.com/*
@@ -180,9 +180,16 @@
     if (!name) name = 'Penonton';
     return { user: name, text: text.slice(0, 60), gift: true };
   }
+  function readJoin(el) {
+    var o = el.querySelector('[data-e2e="message-owner-name"]');
+    var name = o ? o.textContent.trim() : '';
+    if (!name) name = (el.textContent || '').replace(/\s*(joined|menyertai).*$/i, '').trim();
+    if (!name || name.length > 40) return null;
+    return { user: name, text: 'join', join: true };
+  }
   function poll() {
     if (!isLivePage()) { first = true; return; }
-    var rows = document.querySelectorAll('[data-e2e="chat-message"],[data-e2e*="gift"],[data-e2e="social-message"]');
+    var rows = document.querySelectorAll('[data-e2e="chat-message"],[data-e2e*="gift"],[data-e2e="social-message"],[data-e2e="enter-message"]');
     var items = [];
     rows.forEach(function (el) {
       if (seen.has(el)) return;
@@ -190,14 +197,16 @@
       if (first) return; /* abaikan komen lama sebelum skrip mula */
       var tag = el.getAttribute('data-e2e') || '';
       var it = null;
-      if (/gift/i.test(tag)) it = readGift(el);
+      if (tag === 'enter-message') it = readJoin(el);
+      else if (/gift/i.test(tag)) it = readGift(el);
+      else if (tag === 'social-message' && /\bjoined\b|menyertai/i.test(el.textContent || '')) it = readJoin(el);
       else if (tag === 'social-message' && GIFT_RX.test(el.textContent || '') && !/\bjoined\b|menyertai/i.test(el.textContent || '')) it = readGift(el);
       else if (tag === 'chat-message') it = read(el);
       if (it) items.push(it);
     });
     if (rows.length) first = false;
     if (items.length) {
-      items = items.slice(-5);
+      items = items.slice(-8);
       GM_setValue(KEY_BATCH, JSON.stringify({ t: Date.now(), r: Math.random(), items: items }));
       sent += items.length;
       showBadge();

@@ -239,6 +239,23 @@ function addComment(user,text){
   while(queue.length>20)queue.shift();
   renderQueue();
 }
+const joinBuf=[],joinSeen=new Map();let joinLast=0;
+function addJoin(user){
+  user=cleanUser(user);if(!user||user==='Penonton'||blocked(user)||banned.has(user.toLowerCase()))return;
+  const now=Date.now(),k=user.toLowerCase();
+  if(joinSeen.has(k)&&now-joinSeen.get(k)<600000)return;
+  joinSeen.set(k,now);if(joinBuf.indexOf(user)<0)joinBuf.push(user);
+  while(joinBuf.length>6)joinBuf.shift();
+}
+function flushJoin(){
+  if(!joinBuf.length||!running||busy||queue.length||Date.now()-joinLast<9000)return false;
+  const names=joinBuf.splice(0,3);joinLast=Date.now();
+  const n=names.length>1?names.slice(0,-1).join(', ')+' dan '+names[names.length-1]:names[0];
+  const T=['Hai {n}, selamat datang! Duduk dulu, jangan malu-malu, tulis komen ya!','Wah, {n} baru masuk! Selamat datang ke live Bintang, jom berborak!','Eh, ada {n}! Selamat datang, selamat datang! Tulis komen kalau nak tanya apa-apa ya!','Hello {n}! Seronoknya awak datang. Jangan lupa tekan suka ya!'];
+  const reply=T[Math.floor(Math.random()*T.length)].replace('{n}',n);
+  run(async()=>{curComment=null;state='think';stats.answered++;renderStats();await speak(reply)});
+  return true;
+}
 let lastGift='';
 function addGift(user,gift){
   user=cleanUser(user);gift=cleanText(String(gift||'').replace(/^(telah\s+)?(sent|menghantar|hantar)\s+/i,''),30)||'hadiah';
@@ -507,6 +524,7 @@ function tick(){
   if(busy){if(queue.length&&!queue[0]._p&&now>=errUntil)prep(queue[0]);else if(!queue.length&&S.idleOn&&!idleNext&&now>=errUntil)prepIdle();return}
   if(now<errUntil||now-lastSpoke<300)return;
   if(queue.length){const it=queue.shift();renderQueue();run(()=>answer(it));return}
+  if(flushJoin())return;
   if(S.idleOn&&now-lastSpoke>S.idleSec*1000)run(idleTalk);
 }
 setInterval(tick,400);
@@ -530,7 +548,7 @@ async function readImg(url){
   if(imgBusy||!running)return;imgBusy=true;
   try{
     const b64=url.split(',')[1];
-    const body={contents:[{role:'user',parts:[{inlineData:{mimeType:'image/jpeg',data:b64}},{text:'Ini tangkapan skrin panel sembang LIVE TikTok. Baca hanya mesej penonton sebenar (nama pengguna dan teks mesej). Abaikan baris "joined", "Welcome", "Encourage your viewers", hadiah, pengumuman dan elemen UI. Balas JSON sahaja: [{"user":"nama","text":"mesej"}]. Jika tiada mesej penonton, balas [].'}]}],
+    const body={contents:[{role:'user',parts:[{inlineData:{mimeType:'image/jpeg',data:b64}},{text:'Ini tangkapan skrin panel sembang LIVE TikTok. Baca hanya mesej penonton sebenar (nama pengguna dan teks mesej). Baris "joined" dikembalikan sebagai {"user":"nama","join":true}. Abaikan "Welcome", "Encourage your viewers", hadiah, pengumuman dan elemen UI. Balas JSON sahaja: [{"user":"nama","text":"mesej"}]. Jika tiada mesej penonton, balas [].'}]}],
       generationConfig:{temperature:0,maxOutputTokens:600,responseMimeType:'application/json',thinkingConfig:{thinkingBudget:0}}};
     let j;try{j=await gem(S.textModel,body)}catch(e){if(e.status===400&&/thinking/i.test(e.detail||'')){delete body.generationConfig.thinkingConfig;j=await gem(S.textModel,body)}else throw e}
     const t=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[]).map(p=>p.text||'').join('');
@@ -539,7 +557,9 @@ async function readImg(url){
     const now=Date.now();
     for(const [k,v] of seenImg)if(now-v>600000)seenImg.delete(k);
     arr.slice(0,10).forEach(it=>{
-      if(!it||typeof it.text!=='string')return;
+      if(!it)return;
+      if(it.join){addJoin(String(it.user||''));return}
+      if(typeof it.text!=='string')return;
       const user=String(it.user||'Penonton'),key=(user+'|'+it.text).toLowerCase();
       if(seenImg.has(key))return;seenImg.set(key,now);
       addComment(user,it.text);
@@ -556,7 +576,7 @@ window.addEventListener('message',ev=>{
   if(d.hosAiPing&&!linkSeen){linkSeen=true;log('Skrip komen TikTok bersambung')}
   if(typeof d.hosAiImg==='string'&&d.hosAiImg.indexOf('data:image/')===0)readImg(d.hosAiImg);
   if(Array.isArray(d.hosAiBatch)){
-    d.hosAiBatch.slice(0,10).forEach(it=>{if(it&&typeof it.text==='string'){if(it.gift)addGift(String(it.user||'Penonton'),it.text);else addComment(String(it.user||'Penonton'),it.text)}});
+    d.hosAiBatch.slice(0,10).forEach(it=>{if(it&&typeof it.text==='string'){if(it.join)addJoin(String(it.user||''));else if(it.gift)addGift(String(it.user||'Penonton'),it.text);else addComment(String(it.user||'Penonton'),it.text)}});
   }
 });
 
