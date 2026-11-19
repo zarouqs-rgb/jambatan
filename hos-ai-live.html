@@ -108,7 +108,7 @@ body.clean #stage{border-radius:0}
       <label>Model teks</label><input data-k="textModel">
       <label>Model suara</label><input data-k="ttsModel">
       <label class="chk"><input type="checkbox" data-k="idleOn"> Hos berbual sendiri bila tiada komen</label>
-      <label>Selang bual sendiri (saat)</label><input type="number" min="10" max="300" data-k="idleSec">
+      <label>Selang bual sendiri (saat)</label><input type="number" min="4" max="300" data-k="idleSec">
       <label>Jenis topik rawak</label>
       <div class="cats" id="cats"></div>
     </details>
@@ -141,7 +141,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 /* ---------- Tetapan ---------- */
 const VOICES=['Zephyr','Puck','Charon','Kore','Fenrir','Leda','Orus','Aoede','Callirrhoe','Autonoe','Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome','Algenib','Rasalgethi','Laomedeia','Achernar','Alnilam','Schedar','Gacrux','Pulcherrima','Achird','Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'];
-const CAT_LABEL={fakta:'Fakta pelik',kuiz:'Kuiz',teka:'Teka-teki',jenaka:'Jenaka',sains:'Sains ringkas',tip:'Tip hidup',pilih:'Pilih A atau B',cerita:'Cerita mini',sapa:'Sapaan'};
+const CAT_LABEL={fakta:'Fakta pelik',kuiz:'Kuiz',teka:'Teka-teki',jenaka:'Jenaka',sains:'Sains ringkas',tip:'Tip hidup',pilih:'Pilih A atau B',cerita:'Cerita mini',sapa:'Sapaan',bebas:'Idea bebas',lawak:'Lawak Malaysia',ilmu:'Ilmu berguna',mimpi:'Bayangkan kalau...',fikir:'Berfikir sendiri'};
 const CATS={
   fakta:'Beritahu satu fakta pelik tetapi benar tentang haiwan, alam, sejarah atau badan manusia. Pilih topik yang tidak biasa.',
   kuiz:'Tanya satu soalan kuiz pengetahuan am yang mudah dan ajak penonton menjawab dalam komen. Jangan beri jawapan lagi.',
@@ -151,16 +151,21 @@ const CATS={
   tip:'Kongsi satu tip hidup yang santai dan selamat, contohnya tabiat harian atau cara berehat.',
   pilih:'Tanya soalan "pilih A atau B" yang menyeronokkan dan minta penonton tulis pilihan mereka.',
   cerita:'Ceritakan satu cerita mini yang menarik dalam dua ayat.',
+  bebas:'Keluarkan idea sendiri secara bebas: pilih satu topik rawak yang tidak disangka (contohnya makanan, angkasa, haiwan, teknologi, sukan, muzik, sejarah, pelik-pelik) dan cakap sesuatu yang menarik atau lucu tentangnya.',
+  lawak:'Buat lawak spontan: ayat lucu tentang kehidupan seharian orang Malaysia (jalan sesak, makan mamak, hujan, hari Isnin) dengan gaya bersahaja.',
+  ilmu:'Kongsi satu ilmu bermanfaat yang ramai tidak tahu, contohnya tentang kesihatan ringan, wang, teknologi atau bahasa. Tamatkan dengan satu soalan kepada penonton.',
+  mimpi:'Berimaginasi bersuara: "kalau aku ada kuasa..." atau "bayangkan kalau..." satu senario pelik yang lucu, kemudian tanya penonton pendapat mereka.',
+  fikir:'Bercakap seorang diri seperti sedang berfikir tentang satu perkara kecil yang random (contoh kenapa langit biru, kenapa kucing suka kotak), dengan nada manja.',
   sapa:'Sapa penonton yang baru masuk dengan mesra dan ajak mereka menulis komen atau tekan suka.'
 };
 const DEF={name:'Bintang',color:'#ffb347',
   persona:'Kau ceria, ramah dan sedikit nakal. Kau suka berborak tentang apa saja secara rawak dan tidak pakar dalam satu bidang.',
   key:'',textModel:'gemini-2.5-flash',ttsModel:'gemini-2.5-flash-preview-tts',voice:'Kore',
   voiceStyle:'Say this in a Malaysian Malay accent (Bahasa Melayu Malaysia, NOT Indonesian), cheerful, friendly and casual',
-  ttsMode:'auto',rate:1,idleOn:true,idleSec:15,theme:'kampung',inviteOn:true,inviteTxt:'💬 Tulis komen, {nama} jawab!',ver:3,badge:true,showCom:false,orient:'v',ws:'',block:'',
-  cats:{fakta:1,kuiz:1,teka:1,jenaka:1,sains:1,tip:1,pilih:1,cerita:1,sapa:1}};
+  ttsMode:'auto',rate:1,idleOn:true,idleSec:8,theme:'kampung',inviteOn:true,inviteTxt:'💬 Tulis komen, {nama} jawab!',ver:4,badge:true,showCom:false,orient:'v',ws:'',block:'',
+  cats:{fakta:1,kuiz:1,teka:1,jenaka:1,sains:1,tip:1,pilih:1,cerita:1,sapa:1,bebas:1,lawak:1,ilmu:1,mimpi:1,fikir:1}};
 let S=JSON.parse(JSON.stringify(DEF));
-try{const o=JSON.parse(localStorage.getItem('hosAiLive')||'{}');Object.assign(S,o);S.cats=Object.assign({},DEF.cats,o.cats||{});if(!o.ver||o.ver<3){if(!o.ver||o.ver<2)S.idleSec=15;S.voiceStyle=DEF.voiceStyle;S.ver=3}}catch(e){}
+try{const o=JSON.parse(localStorage.getItem('hosAiLive')||'{}');Object.assign(S,o);S.cats=Object.assign({},DEF.cats,o.cats||{});if(!o.ver||o.ver<4){S.idleSec=8;S.voiceStyle=DEF.voiceStyle;S.ver=4}}catch(e){}
 function save(){try{localStorage.setItem('hosAiLive',JSON.stringify(S))}catch(e){}}
 
 VOICES.forEach(v=>{const o=document.createElement('option');o.value=o.textContent=v;$('#voiceSel').appendChild(o)});
