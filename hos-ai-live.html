@@ -83,6 +83,7 @@ body.clean #stage{border-radius:0}
       <label>Warna badan</label><input type="color" data-k="color">
       <label>Sifat hos (bebas, tiada pakar)</label><textarea rows="3" data-k="persona"></textarea>
       <label class="chk"><input type="checkbox" data-k="badge"> Tunjuk lencana "HOS AI" di skrin</label>
+      <label class="chk"><input type="checkbox" data-k="showCom"> Tunjuk nama &amp; komen penonton di skrin</label>
     </details>
 
     <details>
@@ -153,7 +154,7 @@ const DEF={name:'Bintang',color:'#ffb347',
   persona:'Kau ceria, ramah dan sedikit nakal. Kau suka berborak tentang apa saja secara rawak dan tidak pakar dalam satu bidang.',
   key:'',textModel:'gemini-2.5-flash',ttsModel:'gemini-2.5-flash-preview-tts',voice:'Kore',
   voiceStyle:'Sebut dalam loghat Melayu Malaysia, ceria, mesra dan santai',
-  ttsMode:'auto',rate:1,idleOn:true,idleSec:40,badge:true,orient:'v',ws:'',block:'',
+  ttsMode:'auto',rate:1,idleOn:true,idleSec:40,badge:true,showCom:false,orient:'v',ws:'',block:'',
   cats:{fakta:1,kuiz:1,teka:1,jenaka:1,sains:1,tip:1,pilih:1,cerita:1,sapa:1}};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const o=JSON.parse(localStorage.getItem('hosAiLive')||'{}');Object.assign(S,o);S.cats=Object.assign({},DEF.cats,o.cats||{})}catch(e){}
@@ -536,7 +537,7 @@ function drawText(L,now){
     lines.forEach((ln,i)=>ctx.fillText(ln,L.capX+L.capW/2,by+fs*.55+i*lh));
     ctx.globalAlpha=1;
   }
-  const bubOn=!!curComment&&(busy||now<commentUntil);
+  const bubOn=!!S.showCom&&!!curComment&&(busy||now<commentUntil);
   bubA+=((bubOn?1:0)-bubA)*.18;
   if(bubA>.02&&curComment){
     const f1=Math.round(fs0*.62),f2=Math.round(fs0*.7);
