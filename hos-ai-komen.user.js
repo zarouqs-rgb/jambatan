@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Hos AI - Komen TikTok
 // @namespace    https://github.com/zarouqs-rgb/jambatan
-// @version      1.0
+// @version      1.1
 // @description  Baca komen LIVE TikTok (baca sahaja) dan hantar ke app Hos AI Live dalam Gemini Canvas.
 // @match        https://www.tiktok.com/*
-// @match        https://*.scf.usercontent.goog/*
+// @match        https://gemini.google.com/*
 // @grant        GM_setValue
 // @grant        GM_addValueChangeListener
 // @run-at       document-idle
@@ -17,18 +17,42 @@
   var KEY_BATCH = 'hosai_batch';
   var KEY_PING = 'hosai_ping';
 
-  /* ===== Sebelah Canvas: terima dan hantar ke app ===== */
-  if (location.host.indexOf('usercontent.goog') !== -1) {
+  /* ===== Sebelah Gemini: terima dan hantar ke semua bingkai (termasuk Canvas) ===== */
+  if (location.host === 'gemini.google.com') {
+    if (window.top !== window) return;
+    var gbadge = null, got = 0, linked = false;
+    var setG = function (t) {
+      if (!gbadge) {
+        gbadge = document.createElement('div');
+        gbadge.style.cssText =
+          'position:fixed;right:8px;bottom:8px;z-index:2147483647;background:#111c;color:#9fe;' +
+          'font:11px/1.3 sans-serif;padding:3px 7px;border-radius:6px;pointer-events:none';
+        document.documentElement.appendChild(gbadge);
+      }
+      gbadge.textContent = t;
+    };
+    var bc = function (w, msg, depth) {
+      try { w.postMessage(msg, '*'); } catch (e) {}
+      if (depth > 4) return;
+      var n = 0;
+      try { n = w.frames.length; } catch (e) {}
+      for (var i = 0; i < n; i++) {
+        try { bc(w.frames[i], msg, depth + 1); } catch (e) {}
+      }
+    };
     GM_addValueChangeListener(KEY_BATCH, function (n, o, v, remote) {
       if (!remote) return;
       try {
         var d = JSON.parse(v);
-        window.postMessage({ hosAiBatch: d.items || [] }, '*');
+        got += (d.items || []).length;
+        setG('Hos AI: ' + got + ' komen diterima');
+        bc(window, { hosAiSrc: 'tm', hosAiBatch: d.items || [] }, 0);
       } catch (e) {}
     });
     GM_addValueChangeListener(KEY_PING, function (n, o, v, remote) {
       if (!remote) return;
-      window.postMessage({ hosAiPing: true }, '*');
+      if (!linked) { linked = true; setG('Hos AI: tersambung dengan TikTok'); }
+      bc(window, { hosAiSrc: 'tm', hosAiPing: true }, 0);
     });
     return;
   }

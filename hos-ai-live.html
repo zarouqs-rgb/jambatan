@@ -429,8 +429,7 @@ function wsConnect(){
 /* ---------- Komen dari skrip Chrome (pilihan) ---------- */
 let linkSeen=false;
 window.addEventListener('message',ev=>{
-  if(ev.source!==window)return;
-  const d=ev.data;if(!d||typeof d!=='object')return;
+  const d=ev.data;if(!d||typeof d!=='object'||d.hosAiSrc!=='tm')return;
   if(d.hosAiPing&&!linkSeen){linkSeen=true;log('Skrip komen TikTok bersambung')}
   if(Array.isArray(d.hosAiBatch)){
     d.hosAiBatch.slice(0,10).forEach(it=>{if(it&&typeof it.text==='string')addComment(String(it.user||'Penonton'),it.text)});
