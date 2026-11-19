@@ -53,6 +53,7 @@ body.clean #stage{border-radius:0}
     <label>Jidar hitam kiri &amp; kanan (0-200)</label><input type="number" id="mgS" min="0" max="200" step="5" value="50">
     <label>Jidar hitam bawah (0-300)</label><input type="number" id="mgB" min="0" max="300" step="5" value="0">
     <p class="hint">Kecilkan saiz untuk dapat jidar kosong hitam di sekeliling. Kau boleh sorok atau tutup jidar itu di LIVE Studio.</p>
+    <label>Suara hos (percuma, suara komputer)</label><select id="voiceOn" style="background:#0f111a;color:#e8eaf6;border:1px solid #2d3354;border-radius:8px;padding:8px;width:100%"><option value="1">Hidup</option><option value="0">Mati</option></select>
     <label>Kuat bunyi motor (0-100)</label><input type="number" id="vol" min="0" max="100" value="40">
     <label>Uji komen</label>
     <div class="row"><input id="tName" placeholder="Nama"><input id="tText" placeholder="Contoh: 3"><button id="tSend">Hantar</button></div>
@@ -84,8 +85,22 @@ function newRound(){
   riders=NAMES.map((n,i)=>({i,name:n,col:COL[i],dark:DARK[i],pos:0,boost:0,base:.94+Math.random()*.12,drift:Math.random()*6,jump:0,jt:-1,rampsDone:{},backers:{},sup:0,fin:0,coast:0,place:0}));
   Object.values(users).forEach(u=>{u.pick=-1;u.last=0});
   winner=-1;finishedAt=0;phase='bet';phaseT=0;resultText='';resultSub='';dust=[];
-  push('🏁 Pusingan '+roundNo+': tulis nombor 1-5 untuk pilih pelumba!');
+  push('🏁 Pusingan '+roundNo+': tulis nombor 1-5 untuk pilih pelumba!');say('Pusingan '+roundNo+'. Tulis nombor satu hingga lima untuk pilih pelumba kamu!',true);
 }
+let vq=0,vcache=null;
+function msVoice(){const v=speechSynthesis.getVoices();return v.find(x=>/^ms/i.test(x.lang))||v.find(x=>/^id/i.test(x.lang))||null}
+function say(t,force){
+  try{
+    if(!window.speechSynthesis||$('#voiceOn').value!=='1')return;
+    if(vq>=2&&!force)return;
+    const u=new SpeechSynthesisUtterance(String(t).replace(/[^\p{L}\p{N} ,.!?\-]/gu,' '));
+    const v=msVoice();if(v){u.voice=v;u.lang=v.lang}else u.lang='ms-MY';
+    u.rate=1.08;u.pitch=1.05;
+    vq++;u.onend=u.onerror=()=>{vq=Math.max(0,vq-1)};
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+try{speechSynthesis.onvoiceschanged=()=>{}}catch(e){}
 function push(t){ticker.push({t,at:performance.now()});while(ticker.length>4)ticker.shift()}
 function cleanUser(s){return String(s||'Penonton').replace(/[^\p{L}\p{N} _.\-]/gu,'').trim().slice(0,16)||'Penonton'}
 function getUser(n){return users[n]||(users[n]={pick:-1,last:0})}
@@ -115,11 +130,11 @@ function onGift(user,gift){
   let i=u.pick;if(i<0||i>4)i=Math.floor(Math.random()*5);
   const r=riders[i];if(!r)return;
   r.boost=Math.min(4.5,r.boost+(+$('#giftPow').value||1.3));r.backers[user]=(r.backers[user]||0)+3;r.sup+=3;
-  push('🎁 '+user+' hantar hadiah! '+r.name+' BOOST!');blip(300,.6,'sawtooth',.3)
+  push('🎁 '+user+' hantar hadiah! '+r.name+' BOOST!');say('Terima kasih '+user+'! Pelumba '+r.name+' laju!');blip(300,.6,'sawtooth',.3)
 }
 function onJoin(user){
   const now=performance.now();if(now-lastJoinAt<3500)return;lastJoinAt=now;
-  push('👋 Selamat datang, '+cleanUser(user)+'!');
+  push('👋 Selamat datang, '+cleanUser(user)+'!');say('Selamat datang '+cleanUser(user)+'!');
 }
 
 /* ---------- Logik ---------- */
@@ -129,7 +144,7 @@ function update(dt){
   phaseT+=dt;
   const bet=+betSecEl.value||20,raceS=+raceSecEl.value||50;
   if(phase==='bet'){
-    if(phaseT>=bet){phase='race';phaseT=0;push('🚦 MULA! Tulis nombor untuk beri tenaga!');blip(520,.5,'square',.25)}
+    if(phaseT>=bet){phase='race';phaseT=0;push('🚦 MULA! Tulis nombor untuk beri tenaga!');say('Mula! Tulis nombor untuk beri tenaga!',true);blip(520,.5,'square',.25)}
   }else if(phase==='race'){
     riders.forEach(r=>{
       r.drift+=dt;
@@ -160,7 +175,7 @@ function finish(){
   saveLB();
   resultText='Pemenang: '+(winner+1)+' '+w.name+'!';
   resultSub=all.length?'Penyokong: '+all.slice(0,3).join(', ')+(all.length>3?' +'+(all.length-3):''):'Tiada penyokong lagi. Tulis nombor di pusingan seterusnya!';
-  push('🏆 '+resultText);blip(660,.7,'triangle',.3)
+  push('🏆 '+resultText);say('Pemenang! Pelumba nombor '+(winner+1)+', '+w.name+'!'+(all.length?' Tahniah '+all.slice(0,3).join(', ')+'!':''),true);blip(660,.7,'triangle',.3)
 }
 
 /* ---------- Bunyi motor ---------- */
