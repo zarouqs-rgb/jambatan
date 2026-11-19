@@ -389,11 +389,14 @@ function pickVoice(){
   const vs=(window.speechSynthesis&&speechSynthesis.getVoices())||[];
   return vs.find(v=>/^ms/i.test(v.lang))||vs.find(v=>/^id/i.test(v.lang))||null;
 }
+let lastV='';
+function logV(w){if(w!==lastV){lastV=w;log('Suara digunakan: '+w)}}
 function speakBrowser(text){
   return new Promise(res=>{
     if(!window.speechSynthesis){res();return}
     const u=new SpeechSynthesisUtterance(text);
     const v=pickVoice();if(v){u.voice=v;u.lang=v.lang}else u.lang='ms-MY';
+    logV('komputer: '+(v?v.name+' ['+v.lang+']':'tiada (lalai)'));
     u.rate=S.rate||1;u.volume=muted?0:1;planGest(text,text.length*.065/(S.rate||1));
     let done=false;const fin=()=>{if(done)return;done=true;fakeMouth=false;res()};
     u.onend=fin;u.onerror=fin;setTimeout(fin,22000);
@@ -427,7 +430,7 @@ async function playSeg(sg){
     let r=null;
     if(sg.aud){r=await sg.aud;if(r&&r.err){noteGemErr(r.err);r=null}}
     else if(geminiOk())r=await fetchTTS(sg.s);
-    if(r&&r.data){await playPCM(r.data,r.mimeType,sg.s);done=true}
+    if(r&&r.data){logV('Gemini');await playPCM(r.data,r.mimeType,sg.s);done=true}
   }catch(e){noteGemErr(e)}
   if(!done){
     const v=pickVoice();
@@ -1145,6 +1148,7 @@ $('#cClear').onclick=()=>{queue.length=0;renderQueue();log('Giliran komen dikoso
 $('#bStart').onclick=async()=>{
   await ensureAudio().catch(()=>{});
   running=!running;applyUI();
+  if(running){try{const vs=speechSynthesis.getVoices();log('Suara komputer ada: '+(vs.filter(v=>/^(ms|id)/i.test(v.lang)).map(v=>v.name+' ['+v.lang+']').join(', ')||'tiada Melayu/Indonesia'))}catch(e){}}
   if(running){
     lastSpoke=Date.now();setStatus('Hos sedang live. Komen akan dijawab mengikut giliran.');
     if(!busy)run(()=>speak('Hai semua! Saya '+S.name+', hos AI. Tulis apa-apa komen, saya akan jawab.'));
