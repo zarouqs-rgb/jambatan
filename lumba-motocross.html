@@ -74,7 +74,7 @@ let riders=[],users={},phase='bet',phaseT=0,winner=-1,finishedAt=0,paused=false,
 const ticker=[];let lastJoinAt=0,dust=[],resultText='',resultSub='';
 function newRound(){
   roundNo++;
-  riders=NAMES.map((n,i)=>({i,name:n,col:COL[i],dark:DARK[i],pos:0,boost:0,base:.94+Math.random()*.12,drift:Math.random()*6,jump:0,jt:-1,rampsDone:{},backers:{},sup:0,fin:0}));
+  riders=NAMES.map((n,i)=>({i,name:n,col:COL[i],dark:DARK[i],pos:0,boost:0,base:.94+Math.random()*.12,drift:Math.random()*6,jump:0,jt:-1,rampsDone:{},backers:{},sup:0,fin:0,coast:0,place:0}));
   Object.values(users).forEach(u=>{u.pick=-1;u.last=0});
   winner=-1;finishedAt=0;phase='bet';phaseT=0;resultText='';resultSub='';dust=[];
   push('🏁 Pusingan '+roundNo+': tulis nombor 1-5 untuk pilih pelumba!');
@@ -129,11 +129,11 @@ function update(dt){
       const wob=Math.sin(r.drift*1.7+r.i*2)*.05;
       const sp=(r.base+wob)*(1+r.boost*.5)/raceS;
       r.boost*=Math.exp(-dt*.7);
-      if(r.fin)return;
+      if(r.fin){r.coast=Math.min(.08,r.coast+dt*.05*(1-r.coast/.08));return}
       r.pos+=sp*dt;
       RAMPS.forEach((rp,k)=>{if(!r.rampsDone[k]&&r.pos>=rp){r.rampsDone[k]=1;r.jt=0}});
       if(r.jt>=0){r.jt+=dt;const q=r.jt/.7;r.jump=q>=1?0:Math.sin(q*Math.PI)*46;if(q>=1)r.jt=-1}
-      if(r.pos>=1){r.pos=1;r.fin=performance.now();if(winner<0){winner=r.i;finishedAt=phaseT}}
+      if(r.pos>=1){r.pos=1;r.fin=performance.now();r.place=riders.filter(x=>x.fin).length;if(winner<0){winner=r.i;finishedAt=phaseT}}
       if(Math.random()<dt*14)dust.push({x:0,y:0,r:r,life:.5,vx:-30-Math.random()*40,vy:-10-Math.random()*20,ox:0});
     });
     riders.forEach(r=>{if(r.pos<1&&!r.fin){/* getah: sedikit bantu yang tertinggal */const lead=Math.max(...riders.map(x=>x.pos));if(lead-r.pos>.15)r.pos+=dt*.004}});
@@ -157,7 +157,7 @@ function finish(){
 }
 
 /* ---------- Lukisan ---------- */
-const LANE_Y=326,LANE_H=80,X0=96,X1=640;
+const LANE_Y=326,LANE_H=80,X0=96,X1=585;
 function px(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
 function text(t,x,y,size,col,align,stroke){
   ctx.font='bold '+size+'px "Courier New",monospace';ctx.textAlign=align||'left';ctx.textBaseline='middle';
@@ -198,7 +198,7 @@ function drawTrack(tm){
   /* garisan mula */
   px(X0-6,LANE_Y,4,LANE_H*5,'#fff');
   /* garisan penamat berkotak */
-  for(let r=0;r<LANE_H*5/12;r++)for(let c=0;c<2;c++)px(X1+8+c*12,LANE_Y+r*12,12,12,(r+c)%2?'#fff':'#111');
+  for(let r=0;r<LANE_H*5/12;r++)for(let c=0;c<2;c++)px(X1+62+c*12,LANE_Y+r*12,12,12,(r+c)%2?'#fff':'#111');
 }
 function drawBike(x,y,r,tm,wheelie){
   const u=5;
@@ -219,7 +219,7 @@ function drawBike(x,y,r,tm,wheelie){
 function drawRiders(tm){
   riders.forEach(r=>{
     const y=LANE_Y+r.i*LANE_H+LANE_H-14;
-    const x=X0+(X1-X0)*r.pos-20;
+    const x=X0+(X1-X0)*(r.pos+r.coast)-20;
     /* habuk */
     dust.forEach(d=>{if(d.r===r){px(x+d.ox,y-6+d.y,6,6,'rgba(220,180,130,'+Math.max(0,d.life*1.6)+')')}});
     const idle=phase==='bet';
@@ -233,6 +233,7 @@ function drawRiders(tm){
     ctx.fillStyle=r.dark;ctx.beginPath();ctx.arc(28,y,22,0,7);ctx.fill();
     ctx.fillStyle=r.col;ctx.beginPath();ctx.arc(28,y,17,0,7);ctx.fill();
     text(String(r.i+1),28,y+1,24,'#1a0b2e','center',false);
+    if(r.place)text(['','1st','2nd','3rd','4th','5th'][r.place],X1+150,y,18,r.place===1?'#ffd23d':'#fff','center');
     if(phase==='bet'||phase==='result')text(r.name,56,y+26,14,'#fff','left');
   });
 }
