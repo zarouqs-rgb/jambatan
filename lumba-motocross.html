@@ -49,6 +49,10 @@ body.clean #stage{border-radius:0}
     <label>Panjang perlumbaan (saat)</label><input type="number" id="raceSec" min="20" max="180" value="50">
     <label>Kuasa hadiah (motor jadi laju, 0.5 - 4)</label><input type="number" id="giftPow" min="0.5" max="4" step="0.1" value="1.3">
     <label>Kuasa setiap komen (0.1 - 1)</label><input type="number" id="comPow" min="0.1" max="1" step="0.05" value="0.3">
+    <label>Saiz permainan dalam bingkai (50-100%)</label><input type="number" id="frameSc" min="50" max="100" step="1" value="100">
+    <label>Letak permainan</label><select id="frameAnchor" style="background:#0f111a;color:#e8eaf6;border:1px solid #2d3354;border-radius:8px;padding:8px;width:100%"><option value="mid">Tengah</option><option value="bot">Bawah (ruang kosong di atas)</option><option value="top">Atas (ruang kosong di bawah)</option></select>
+    <p class="hint">Kecilkan saiz untuk dapat jidar kosong hitam di sekeliling. Kau boleh sorok atau tutup jidar itu di LIVE Studio.</p>
+    <label>Kuat bunyi motor (0-100)</label><input type="number" id="vol" min="0" max="100" value="40">
     <label>Uji komen</label>
     <div class="row"><input id="tName" placeholder="Nama"><input id="tText" placeholder="Contoh: 3"><button id="tSend">Hantar</button></div>
     <div class="row"><button id="tRand">Komen ujian</button><button id="tGift">Hadiah ujian</button><button id="tJoin">Masuk ujian</button></div>
@@ -110,7 +114,7 @@ function onGift(user,gift){
   let i=u.pick;if(i<0||i>4)i=Math.floor(Math.random()*5);
   const r=riders[i];if(!r)return;
   r.boost=Math.min(4.5,r.boost+(+$('#giftPow').value||1.3));r.backers[user]=(r.backers[user]||0)+3;r.sup+=3;
-  push('🎁 '+user+' hantar hadiah! '+r.name+' BOOST!');
+  push('🎁 '+user+' hantar hadiah! '+r.name+' BOOST!');blip(300,.6,'sawtooth',.3)
 }
 function onJoin(user){
   const now=performance.now();if(now-lastJoinAt<3500)return;lastJoinAt=now;
@@ -124,7 +128,7 @@ function update(dt){
   phaseT+=dt;
   const bet=+betSecEl.value||20,raceS=+raceSecEl.value||50;
   if(phase==='bet'){
-    if(phaseT>=bet){phase='race';phaseT=0;push('🚦 MULA! Tulis nombor untuk beri tenaga!')}
+    if(phaseT>=bet){phase='race';phaseT=0;push('🚦 MULA! Tulis nombor untuk beri tenaga!');blip(520,.5,'square',.25)}
   }else if(phase==='race'){
     riders.forEach(r=>{
       r.drift+=dt;
@@ -155,7 +159,45 @@ function finish(){
   saveLB();
   resultText='Pemenang: '+(winner+1)+' '+w.name+'!';
   resultSub=all.length?'Penyokong: '+all.slice(0,3).join(', ')+(all.length>3?' +'+(all.length-3):''):'Tiada penyokong lagi. Tulis nombor di pusingan seterusnya!';
-  push('🏆 '+resultText);
+  push('🏆 '+resultText);blip(660,.7,'triangle',.3)
+}
+
+/* ---------- Bunyi motor ---------- */
+let AC=null,eng=null;
+function audioInit(){
+  if(AC)return;
+  try{
+    AC=new (window.AudioContext||window.webkitAudioContext)();
+    const o1=AC.createOscillator(),o2=AC.createOscillator(),lp=AC.createBiquadFilter(),g=AC.createGain(),lfo=AC.createOscillator(),lg=AC.createGain();
+    o1.type='sawtooth';o2.type='square';lp.type='lowpass';lp.frequency.value=700;g.gain.value=0;
+    lfo.frequency.value=22;lg.gain.value=18;lfo.connect(lg);lg.connect(o1.frequency);lg.connect(o2.frequency);
+    o1.connect(lp);o2.connect(lp);lp.connect(g);g.connect(AC.destination);
+    o1.start();o2.start();lfo.start();
+    eng={o1,o2,g,lp,lfo};
+  }catch(e){AC=null}
+}
+['pointerdown','keydown'].forEach(ev=>addEventListener(ev,()=>{audioInit();if(AC&&AC.state==='suspended')AC.resume()},{passive:true}));
+function engineUpdate(){
+  if(!AC||!eng)return;
+  const vol=Math.max(0,Math.min(100,+$('#vol').value||0))/100;
+  let tgt=0,f=60;
+  if(phase==='race'&&!paused&&riders.length){
+    const live=riders.filter(r=>!r.fin);
+    const avg=live.length?live.reduce((a,r)=>a+r.boost,0)/live.length:0;
+    const mx=riders.reduce((a,r)=>Math.max(a,r.fin?0:r.boost),0);
+    f=62+avg*26+mx*14;eng.lfo.frequency.value=18+mx*10;
+    tgt=vol*(live.length?.12:.03);
+  }else if(phase==='bet'&&!paused){f=48;eng.lfo.frequency.value=14;tgt=vol*.04}
+  const t=AC.currentTime;
+  eng.o1.frequency.setTargetAtTime(f,t,.15);eng.o2.frequency.setTargetAtTime(f*.5,t,.15);
+  eng.g.gain.setTargetAtTime(tgt,t,.2);
+}
+function blip(freq,dur,type,vol){
+  if(!AC)return;const v=Math.max(0,Math.min(100,+$('#vol').value||0))/100*(vol||.2);if(!v)return;
+  const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime;
+  o.type=type||'square';o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(freq*2.2,t+dur);
+  g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+dur+.02);
 }
 
 /* ---------- Lukisan ---------- */
@@ -272,7 +314,17 @@ function step(now){
   const dt=Math.min(.1,(now-last)/1000);last=now;tAcc+=dt;
   update(dt);
   ctx.imageSmoothingEnabled=false;
+  const fs=Math.max(.5,Math.min(1,(+$('#frameSc').value||100)/100));
+  ctx.setTransform(1,0,0,1,0,0);
+  if(fs<1){
+    ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+    const an=$('#frameAnchor').value,ox=(W-W*fs)/2,oy=an==='bot'?H-H*fs:an==='top'?0:(H-H*fs)/2;
+    ctx.setTransform(fs,0,0,fs,ox,oy);
+    ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();
+  }
   drawBg(tAcc);drawTrack(tAcc);drawRiders(tAcc);drawHud(now);
+  engineUpdate();
+  ctx.setTransform(1,0,0,1,0,0);
 }
 function loop(now){step(now);requestAnimationFrame(loop)}
 requestAnimationFrame(loop);
