@@ -344,7 +344,7 @@ function playPCM(b64,mime,text){
       const buf=ac.createBuffer(1,n,rate);buf.copyToChannel(f,0);
       const src=ac.createBufferSource();src.buffer=buf;src.connect(analyser);
       src.onended=()=>{playing=false;curSrc=null;res()};
-      curSrc=src;playing=true;src.start();
+      curSrc=src;playing=true;src.start();showCap();
       if(text)planGest(text,buf.duration);
     }catch(e){playing=false;rej(e)}
   });
@@ -370,16 +370,17 @@ function speakBrowser(text){
     u.rate=S.rate||1;u.volume=muted?0:1;planGest(text,text.length*.065/(S.rate||1));
     let done=false;const fin=()=>{if(done)return;done=true;fakeMouth=false;res()};
     u.onend=fin;u.onerror=fin;setTimeout(fin,22000);
-    fakeMouth=true;speechSynthesis.cancel();speechSynthesis.speak(u);
+    fakeMouth=true;showCap();speechSynthesis.cancel();speechSynthesis.speak(u);
   });
 }
-let caption='',captionUntil=0,state='idle',curComment=null,commentUntil=0,skipGen=0;
+let caption='',captionUntil=0,state='idle',curComment=null,commentUntil=0,skipGen=0,pendingCap=null;
+function showCap(){if(pendingCap!==null){caption=pendingCap;captionUntil=Date.now()+1e9;state='talk';pendingCap=null}}
 function noteGemErr(e){
   log('Suara Gemini gagal ('+(e.status||e.message)+'). Guna suara pelayar.');
   if(S.ttsMode==='auto')geminiCool=Date.now()+(e.status===429?90000:30000);
 }
 async function playSeg(sg){
-  if(sg.k==='b'){GEST.wow={t0:performance.now(),d:GD.wow};await beep();return}
+  if(sg.k==='b'){showCap();GEST.wow={t0:performance.now(),d:GD.wow};await beep();return}
   let done=false;
   try{
     let r=null;
@@ -391,10 +392,10 @@ async function playSeg(sg){
 }
 async function speak(text,pre){
   const segs=pre||planSegs(text,true);
-  caption=maskText(text);captionUntil=Date.now()+1e9;state='talk';
+  pendingCap=maskText(text);caption='';captionUntil=0;state='think';
   const g=skipGen;
   for(const sg of segs){if(g!==skipGen)break;await playSeg(sg)}
-  captionUntil=Date.now()+2200;commentUntil=Date.now()+2200;state='idle';
+  showCap();captionUntil=Date.now()+2200;commentUntil=Date.now()+2200;state='idle';
 }
 function stopSpeech(){
   skipGen++;
