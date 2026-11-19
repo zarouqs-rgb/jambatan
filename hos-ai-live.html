@@ -97,6 +97,11 @@ body.clean #stage{border-radius:0}
         <option value="gemini">Gemini sahaja</option>
         <option value="browser">Suara pelayar sahaja (tiada kuota)</option>
       </select>
+      <label>Bila suara Gemini kehabisan kuota</label>
+      <select data-k="fb">
+        <option value="tunggu">Tunggu sebentar (kekal suara Melayu, tiada suara Indonesia)</option>
+        <option value="komputer">Guna suara komputer (mungkin berbunyi Indonesia)</option>
+      </select>
       <label>Nama suara Gemini</label><select id="voiceSel" data-k="voice"></select>
       <label>Gaya suara</label><input data-k="voiceStyle">
       <label>Kelajuan suara pelayar</label><input type="number" step="0.1" min="0.5" max="2" data-k="rate">
@@ -162,10 +167,10 @@ const DEF={name:'Bintang',color:'#ffb347',
   persona:'Kau ceria, ramah dan sedikit nakal. Kau suka berborak tentang apa saja secara rawak dan tidak pakar dalam satu bidang.',
   key:'',textModel:'gemini-2.5-flash',ttsModel:'gemini-2.5-flash-preview-tts',voice:'Kore',
   voiceStyle:'Say this in a Malaysian Malay accent (Bahasa Melayu Malaysia, NOT Indonesian), cheerful, friendly and casual',
-  ttsMode:'auto',rate:1,idleOn:true,idleSec:2,theme:'kampung',inviteOn:true,inviteTxt:'💬 Tulis komen, {nama} jawab!',ver:5,badge:true,showCom:false,orient:'v',ws:'',block:'',
+  ttsMode:'auto',fb:'tunggu',rate:1,idleOn:true,idleSec:2,theme:'kampung',inviteOn:true,inviteTxt:'💬 Tulis komen, {nama} jawab!',ver:6,badge:true,showCom:false,orient:'v',ws:'',block:'',
   cats:{fakta:1,kuiz:1,teka:1,jenaka:1,sains:1,tip:1,pilih:1,cerita:1,sapa:1,bebas:1,lawak:1,ilmu:1,mimpi:1,fikir:1}};
 let S=JSON.parse(JSON.stringify(DEF));
-try{const o=JSON.parse(localStorage.getItem('hosAiLive')||'{}');Object.assign(S,o);S.cats=Object.assign({},DEF.cats,o.cats||{});if(!o.ver||o.ver<5){S.idleSec=2;S.voiceStyle=DEF.voiceStyle;S.ver=5}}catch(e){}
+try{const o=JSON.parse(localStorage.getItem('hosAiLive')||'{}');Object.assign(S,o);S.cats=Object.assign({},DEF.cats,o.cats||{});if(!o.ver||o.ver<6){if(o.ver<5||!o.ver)S.idleSec=2;S.fb='tunggu';S.voiceStyle=DEF.voiceStyle;S.ver=6}}catch(e){}
 function save(){try{localStorage.setItem('hosAiLive',JSON.stringify(S))}catch(e){}}
 
 VOICES.forEach(v=>{const o=document.createElement('option');o.value=o.textContent=v;$('#voiceSel').appendChild(o)});
@@ -412,8 +417,8 @@ function showCap(){
   for(let i=1;i<ch.length;i++){const c=ch[i];capTimers.push(setTimeout(()=>{caption=c},dur*(acc/total)));acc+=c.length+1}
 }
 function noteGemErr(e){
-  log('Suara Gemini gagal ('+(e.status||e.message)+'). Guna suara pelayar.');
-  if(S.ttsMode==='auto')geminiCool=Date.now()+(e.status===429?90000:30000);
+  log('Suara Gemini gagal ('+(e.status||e.message)+')'+(S.fb==='komputer'?'. Guna suara komputer.':'. Tunggu kuota pulih.'));
+  if(S.ttsMode==='auto')geminiCool=Date.now()+(e.status===429?45000:20000);
 }
 async function playSeg(sg){
   if(sg.k==='b'){showCap();GEST.wow={t0:performance.now(),d:GD.wow};await beep();return}
@@ -424,7 +429,15 @@ async function playSeg(sg){
     else if(geminiOk())r=await fetchTTS(sg.s);
     if(r&&r.data){await playPCM(r.data,r.mimeType,sg.s);done=true}
   }catch(e){noteGemErr(e)}
-  if(!done)await speakBrowser(sg.s);
+  if(!done){
+    const v=pickVoice();
+    if(S.fb==='komputer'||S.ttsMode==='browser'||(v&&/^ms/i.test(v.lang))){await speakBrowser(sg.s);return}
+    /* tunggu kuota pulih supaya suara tak bertukar jadi Indonesia */
+    const w=Math.min(12000,Math.max(3000,geminiCool-Date.now()));
+    await new Promise(r=>setTimeout(r,w));
+    try{const r=await fetchTTS(sg.s);if(r&&r.data){await playPCM(r.data,r.mimeType,sg.s);return}}catch(e){noteGemErr(e)}
+    showCap();await new Promise(r=>setTimeout(r,Math.min(9000,sg.s.length*70)));
+  }
 }
 async function speak(text,pre){
   const segs=pre||planSegs(text,true);
@@ -525,7 +538,8 @@ function tick(){
   if(now<errUntil||now-lastSpoke<300)return;
   if(queue.length){const it=queue.shift();renderQueue();run(()=>answer(it));return}
   if(flushJoin())return;
-  if(S.idleOn&&now-lastSpoke>S.idleSec*1000)run(idleTalk);
+  const ttsWait=S.ttsMode!=='browser'&&S.fb!=='komputer'&&now<geminiCool;
+  if(S.idleOn&&!ttsWait&&now-lastSpoke>S.idleSec*1000)run(idleTalk);
 }
 setInterval(tick,400);
 
