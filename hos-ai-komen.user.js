@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hos AI - Komen TikTok
 // @namespace    https://github.com/zarouqs-rgb/jambatan
-// @version      1.1
+// @version      1.2
 // @description  Baca komen LIVE TikTok (baca sahaja) dan hantar ke app Hos AI Live dalam Gemini Canvas.
 // @match        https://www.tiktok.com/*
 // @match        https://gemini.google.com/*
@@ -91,15 +91,29 @@
     return { user: name, text: text.slice(0, 300) };
   }
 
+  var GIFT_RX = /\b(sent|menghantar|hantar|dihantar|gift|hadiah)\b/i;
+  function readGift(el) {
+    var o = el.querySelector('[data-e2e="message-owner-name"]');
+    var name = o ? o.textContent.trim() : '';
+    var full = (el.textContent || '').trim();
+    var i = name ? full.indexOf(name) : -1;
+    var text = (i >= 0 ? full.slice(i + name.length) : full).trim();
+    if (!name) name = 'Penonton';
+    return { user: name, text: text.slice(0, 60), gift: true };
+  }
   function poll() {
     if (!isLivePage()) { first = true; return; }
-    var rows = document.querySelectorAll('[data-e2e="chat-message"]');
+    var rows = document.querySelectorAll('[data-e2e="chat-message"],[data-e2e*="gift"],[data-e2e="social-message"]');
     var items = [];
     rows.forEach(function (el) {
       if (seen.has(el)) return;
       seen.add(el);
       if (first) return; /* abaikan komen lama sebelum skrip mula */
-      var it = read(el);
+      var tag = el.getAttribute('data-e2e') || '';
+      var it = null;
+      if (/gift/i.test(tag)) it = readGift(el);
+      else if (tag === 'social-message' && GIFT_RX.test(el.textContent || '') && !/\bjoined\b|menyertai/i.test(el.textContent || '')) it = readGift(el);
+      else if (tag === 'chat-message') it = read(el);
       if (it) items.push(it);
     });
     if (rows.length) first = false;
