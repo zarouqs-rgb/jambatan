@@ -623,7 +623,8 @@ function drawKampung(t,L){
 }
 
 /* ---------- Gerak isyarat ikut percakapan ---------- */
-const GEST={},GD={wave:1700,ask:1500,cheer:1100,point:1200,laugh:1300,sad:1500,wow:1100};
+const GEST={},GD={wave:1700,ask:1500,cheer:1100,point:1200,laugh:1300,sad:1500,wow:1100,dance:4000,sway:3200,stretch:2200};
+let nextIdle=0;
 let gq=[],beatAt=0,beatSide=0,mPrev=0;
 const gs={aL:0,aR:0,hr:0,hy:0,bx:0,es:1,bl:0,br:0,hop:0,sq:0};
 const GRX=[['wave',/\b(hai|helo|hello|hi|selamat|assalamualaikum|salam|apa khabar)\b/gi],['ask',/\?/g],['cheer',/!/g],
@@ -649,6 +650,14 @@ function gestStep(now){
   if((p=pr('laugh'))>=0){tg.bx=Math.sin(p*60)*5*ev(p);tg.sq=ev(p);tg.hop=-8*Math.abs(Math.sin(p*Math.PI*4))}
   if((p=pr('sad'))>=0){tg.hy=16*ev(p);tg.hr=-.08*ev(p);tg.bl=tg.br=7*ev(p)}
   if((p=pr('wow'))>=0){tg.es=1+.22*ev(p);tg.aL=tg.aR=ev(p);tg.hy=-8*ev(p)}
+  if((p=pr('dance'))>=0){const w=Math.sin(p*Math.PI*8);tg.bx=w*16*ev(p);tg.hop=-12*Math.abs(w)*ev(p);tg.aL=ev(p)*(1+.8*w);tg.aR=ev(p)*(1-.8*w);tg.hr=w*.1*ev(p)}
+  if((p=pr('sway'))>=0){const w=Math.sin(p*Math.PI*4);tg.bx=w*11*ev(p);tg.hr=w*.08*ev(p);tg.aL=ev(p)*(.45+.4*w);tg.aR=ev(p)*(.45-.4*w)}
+  if((p=pr('stretch'))>=0){tg.aL=tg.aR=2.4*ev(p);tg.hy=-6*ev(p)}
+  if(state==='idle'&&!GEST.busy){
+    tg.bx+=Math.sin(now/1100)*3;
+    if(!nextIdle)nextIdle=now+3000;
+    if(now>nextIdle){const ty=['dance','dance','sway','sway','stretch','wave'][Math.floor(Math.random()*6)];GEST[ty]={t0:now,d:GD[ty]};nextIdle=now+5000+Math.random()*5000}
+  }else if(state!=='idle')nextIdle=now+4000;
   if(state==='talk'){
     if(mouth>.5&&mPrev<=.5&&now-beatAt>430){beatAt=now;beatSide^=1}
     const bd=Math.max(0,1-(now-beatAt)/380);
