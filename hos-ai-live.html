@@ -167,10 +167,10 @@ const DEF={name:'Bintang',color:'#ffb347',
   persona:'Kau ceria, ramah dan sedikit nakal. Kau suka berborak tentang apa saja secara rawak dan tidak pakar dalam satu bidang.',
   key:'',textModel:'gemini-2.5-flash',ttsModel:'gemini-2.5-flash-preview-tts',voice:'Kore',
   voiceStyle:'Say this in a Malaysian Malay accent (Bahasa Melayu Malaysia, NOT Indonesian), cheerful, friendly and casual',
-  ttsMode:'auto',fb:'tunggu',rate:1,idleOn:true,idleSec:2,theme:'kampung',inviteOn:true,inviteTxt:'💬 Tulis komen, {nama} jawab!',ver:6,badge:true,showCom:false,orient:'v',ws:'',block:'',
+  ttsMode:'auto',fb:'tunggu',rate:1,idleOn:false,idleSec:2,theme:'kampung',inviteOn:true,inviteTxt:'💬 Tulis komen, {nama} jawab!',ver:7,badge:true,showCom:false,orient:'v',ws:'',block:'',
   cats:{fakta:1,kuiz:1,teka:1,jenaka:1,sains:1,tip:1,pilih:1,cerita:1,sapa:1,bebas:1,lawak:1,ilmu:1,mimpi:1,fikir:1}};
 let S=JSON.parse(JSON.stringify(DEF));
-try{const o=JSON.parse(localStorage.getItem('hosAiLive')||'{}');Object.assign(S,o);S.cats=Object.assign({},DEF.cats,o.cats||{});if(!o.ver||o.ver<6){if(o.ver<5||!o.ver)S.idleSec=2;S.fb='tunggu';S.voiceStyle=DEF.voiceStyle;S.ver=6}}catch(e){}
+try{const o=JSON.parse(localStorage.getItem('hosAiLive')||'{}');Object.assign(S,o);S.cats=Object.assign({},DEF.cats,o.cats||{});if(!o.ver||o.ver<7){if(o.ver<5||!o.ver)S.idleSec=2;S.fb='tunggu';S.idleOn=false;S.voiceStyle=DEF.voiceStyle;S.ver=7}}catch(e){}
 function save(){try{localStorage.setItem('hosAiLive',JSON.stringify(S))}catch(e){}}
 
 VOICES.forEach(v=>{const o=document.createElement('option');o.value=o.textContent=v;$('#voiceSel').appendChild(o)});

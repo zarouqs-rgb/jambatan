@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lumba Motocross Live</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0f111a;color:#e8eaf6;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{display:flex;height:100vh;height:100dvh}
+#stageWrap{flex:1;display:flex;align-items:center;justify-content:center;min-width:0;background:#07080f;padding:8px}
+#stage{background:#1b1030;display:block;image-rendering:pixelated}
+#panel{width:340px;max-width:100%;overflow-y:auto;padding:12px;background:#151827;border-left:1px solid #262b45}
+h1{font-size:18px;margin:2px 0 8px}
+.status{background:#0f111a;border:1px solid #2d3354;border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:8px;min-height:36px}
+.row{display:flex;gap:6px;margin:6px 0;flex-wrap:wrap;align-items:center}
+button{background:#262b45;color:#e8eaf6;border:0;padding:9px 12px;border-radius:10px;font-size:14px;cursor:pointer}
+button:active{transform:scale(.97)}
+button.pri{background:#ff9f43;color:#1b1200;font-weight:700}
+input{background:#0f111a;color:#e8eaf6;border:1px solid #2d3354;border-radius:8px;padding:8px;font-size:14px;width:100%;font-family:inherit}
+.row input{width:auto;flex:1;min-width:0}
+label{display:block;font-size:12px;color:#9aa3c7;margin:8px 0 2px}
+.hint{font-size:12px;color:#8a93b8;margin:4px 0}
+#log{white-space:pre-wrap;font-size:11px;color:#8a93b8;background:#0f111a;border-radius:8px;padding:8px;min-height:40px;max-height:160px;overflow:auto}
+body.clean #panel{display:none}
+body.clean #stageWrap{padding:0}
+body.clean #stage{border-radius:0}
+@media(max-width:820px){
+  #app{flex-direction:column;height:auto;min-height:100vh}
+  #stageWrap{height:64vh;flex:none}
+  #panel{width:100%;border-left:0}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stageWrap"><canvas id="stage" width="720" height="1280"></canvas></div>
+  <div id="panel">
+    <h1>🏍 Lumba Motocross Live</h1>
+    <div class="status" id="status">Sedia.</div>
+    <div class="row">
+      <button class="pri" id="bGo">⏸ Jeda</button>
+      <button id="bNew">🔁 Pusingan baru</button>
+      <button id="bPip">🪟 Tetingkap</button>
+      <button id="bClean">🧼 Mod bersih</button>
+    </div>
+    <p class="hint">Tetingkap = tetingkap terapung dengan permainan sahaja. Tangkap tetingkap itu di TikTok LIVE Studio. Penonton tulis nombor 1-5 (atau nama warna) untuk menyokong pelumba. Hadiah beri tenaga besar.</p>
+    <label>Masa pilih pelumba (saat)</label><input type="number" id="betSec" min="5" max="120" value="20">
+    <label>Panjang perlumbaan (saat)</label><input type="number" id="raceSec" min="20" max="180" value="50">
+    <label>Uji komen</label>
+    <div class="row"><input id="tName" placeholder="Nama"><input id="tText" placeholder="Contoh: 3"><button id="tSend">Hantar</button></div>
+    <div class="row"><button id="tRand">Komen ujian</button><button id="tGift">Hadiah ujian</button><button id="tJoin">Masuk ujian</button></div>
+    <div class="row"><button id="bResetLB">Kosongkan papan markah</button></div>
+    <label>Log</label><div id="log"></div>
+  </div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const cv=$('#stage'),ctx=cv.getContext('2d');
+const W=720,H=1280;
+function log(m){const l=$('#log');l.textContent=(new Date().toLocaleTimeString()+' '+m+'\n'+l.textContent).slice(0,2000)}
+function setStatus(m){$('#status').textContent=m}
+
+/* ---------- Tetapan ---------- */
+const NAMES=['Merah','Biru','Hijau','Kuning','Ungu'];
+const COL=['#ff4d4d','#3d8bff','#3ddc6f','#ffd23d','#b06bff'];
+const DARK=['#a01f1f','#1f4fa0','#1f8f43','#a8870f','#6a38b0'];
+const betSecEl=$('#betSec'),raceSecEl=$('#raceSec');
+let LB={};try{LB=JSON.parse(localStorage.getItem('lumbaLB')||'{}')}catch(e){}
+function saveLB(){try{localStorage.setItem('lumbaLB',JSON.stringify(LB))}catch(e){}}
+
+/* ---------- Keadaan ---------- */
+let riders=[],users={},phase='bet',phaseT=0,winner=-1,finishedAt=0,paused=false,roundNo=0;
+const ticker=[];let lastJoinAt=0,dust=[],resultText='',resultSub='';
+function newRound(){
+  roundNo++;
+  riders=NAMES.map((n,i)=>({i,name:n,col:COL[i],dark:DARK[i],pos:0,boost:0,base:.94+Math.random()*.12,drift:Math.random()*6,jump:0,jt:-1,rampsDone:{},backers:{},sup:0,fin:0}));
+  Object.values(users).forEach(u=>{u.pick=-1;u.last=0});
+  winner=-1;finishedAt=0;phase='bet';phaseT=0;resultText='';resultSub='';dust=[];
+  push('🏁 Pusingan '+roundNo+': tulis nombor 1-5 untuk pilih pelumba!');
+}
+function push(t){ticker.push({t,at:performance.now()});while(ticker.length>4)ticker.shift()}
+function cleanUser(s){return String(s||'Penonton').replace(/[^\p{L}\p{N} _.\-]/gu,'').trim().slice(0,16)||'Penonton'}
+function getUser(n){return users[n]||(users[n]={pick:-1,last:0})}
+function pickFrom(t){
+  t=String(t||'').toLowerCase();
+  const m=t.match(/(?:^|[^0-9])([1-5])(?:[^0-9]|$)/);if(m)return +m[1]-1;
+  for(let i=0;i<5;i++)if(t.includes(NAMES[i].toLowerCase()))return i;
+  return -1;
+}
+function onComment(user,text){
+  user=cleanUser(user);const u=getUser(user),pk=pickFrom(text),now=performance.now();
+  const wasNew=u.pick<0;
+  if(pk>=0)u.pick=pk;
+  if(u.pick<0)return;
+  const r=riders[u.pick];
+  if(phase==='bet'){
+    if(pk>=0&&(wasNew||pk!==u.pick||true)){r.backers[user]=r.backers[user]||0;push('✋ '+user+' sokong '+r.name)}
+    return;
+  }
+  if(phase!=='race')return;
+  if(now-u.last<2000)return;u.last=now;
+  r.boost=Math.min(2.2,r.boost+.3);r.backers[user]=(r.backers[user]||0)+1;r.sup++;
+  push('🔥 '+user+' ➜ '+r.name);
+}
+function onGift(user,gift){
+  user=cleanUser(user);const u=getUser(user);
+  let i=u.pick;if(i<0||i>4)i=Math.floor(Math.random()*5);
+  const r=riders[i];if(!r)return;
+  r.boost=Math.min(3,r.boost+1.3);r.backers[user]=(r.backers[user]||0)+3;r.sup+=3;
+  push('🎁 '+user+' hantar hadiah! '+r.name+' BOOST!');
+}
+function onJoin(user){
+  const now=performance.now();if(now-lastJoinAt<3500)return;lastJoinAt=now;
+  push('👋 Selamat datang, '+cleanUser(user)+'!');
+}
+
+/* ---------- Logik ---------- */
+const RAMPS=[.18,.4,.62,.82];
+function update(dt){
+  if(paused)return;
+  phaseT+=dt;
+  const bet=+betSecEl.value||20,raceS=+raceSecEl.value||50;
+  if(phase==='bet'){
+    if(phaseT>=bet){phase='race';phaseT=0;push('🚦 MULA! Tulis nombor untuk beri tenaga!')}
+  }else if(phase==='race'){
+    riders.forEach(r=>{
+      r.drift+=dt;
+      const wob=Math.sin(r.drift*1.7+r.i*2)*.05;
+      const sp=(r.base+wob)*(1+r.boost*.5)/raceS;
+      r.boost*=Math.exp(-dt*.7);
+      if(r.fin)return;
+      r.pos+=sp*dt;
+      RAMPS.forEach((rp,k)=>{if(!r.rampsDone[k]&&r.pos>=rp){r.rampsDone[k]=1;r.jt=0}});
+      if(r.jt>=0){r.jt+=dt;const q=r.jt/.7;r.jump=q>=1?0:Math.sin(q*Math.PI)*46;if(q>=1)r.jt=-1}
+      if(r.pos>=1){r.pos=1;r.fin=performance.now();if(winner<0){winner=r.i;finishedAt=phaseT}}
+      if(Math.random()<dt*14)dust.push({x:0,y:0,r:r,life:.5,vx:-30-Math.random()*40,vy:-10-Math.random()*20,ox:0});
+    });
+    riders.forEach(r=>{if(r.pos<1&&!r.fin){/* getah: sedikit bantu yang tertinggal */const lead=Math.max(...riders.map(x=>x.pos));if(lead-r.pos>.15)r.pos+=dt*.004}});
+    if(winner>=0&&phaseT-finishedAt>4)finish();
+  }else if(phase==='result'){
+    if(phaseT>=12)newRound();
+  }
+  for(let i=dust.length-1;i>=0;i--){const d=dust[i];d.life-=dt;d.ox+=d.vx*dt;d.y+=d.vy*dt;if(d.life<=0)dust.splice(i,1)}
+}
+function finish(){
+  phase='result';phaseT=0;
+  const w=riders[winner];
+  const sups=Object.keys(w.backers).sort((a,b)=>w.backers[b]-w.backers[a]);
+  const pickers=Object.keys(users).filter(n=>users[n].pick===winner);
+  const all=Array.from(new Set(sups.concat(pickers)));
+  all.forEach(n=>{LB[n]=(LB[n]||0)+1+((w.backers[n]||0)>=3?2:0)});
+  saveLB();
+  resultText='Pemenang: '+(winner+1)+' '+w.name+'!';
+  resultSub=all.length?'Penyokong: '+all.slice(0,3).join(', ')+(all.length>3?' +'+(all.length-3):''):'Tiada penyokong lagi. Tulis nombor di pusingan seterusnya!';
+  push('🏆 '+resultText);
+}
+
+/* ---------- Lukisan ---------- */
+const LANE_Y=326,LANE_H=80,X0=96,X1=640;
+function px(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
+function text(t,x,y,size,col,align,stroke){
+  ctx.font='bold '+size+'px "Courier New",monospace';ctx.textAlign=align||'left';ctx.textBaseline='middle';
+  if(stroke!==false){ctx.lineWidth=Math.max(3,size/6);ctx.strokeStyle='#1a0b2e';ctx.strokeText(t,x,y)}
+  ctx.fillStyle=col||'#fff';ctx.fillText(t,x,y);
+}
+function pill(t,x,y,w,h,bg){ctx.fillStyle=bg;ctx.beginPath();ctx.roundRect(x,y,w,h,10);ctx.fill()}
+function drawBg(tm){
+  const g=ctx.createLinearGradient(0,0,0,300);g.addColorStop(0,'#2a1250');g.addColorStop(.6,'#c2447a');g.addColorStop(1,'#ff9a52');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,320);
+  px(560,190,70,70,'#ffe08a');px(570,180,50,90,'#ffe08a');px(550,200,90,50,'#ffe08a');
+  const far=[[0,60],[60,110],[150,70],[230,130],[330,80],[420,120],[520,70],[600,100],[680,60]];
+  ctx.fillStyle='#3a1a5e';ctx.beginPath();ctx.moveTo(0,320);far.forEach(a=>ctx.lineTo(a[0],320-a[1]));ctx.lineTo(W,320);ctx.fill();
+  ctx.fillStyle='#1f0f3a';
+  const o=(tm*10)%120;
+  for(let i=-1;i<7;i++){const bx=i*120-o;ctx.beginPath();ctx.moveTo(bx,330);ctx.lineTo(bx+40,260);ctx.lineTo(bx+80,330);ctx.fill()}
+  /* tanah bawah */
+  ctx.fillStyle='#2a1a2e';ctx.fillRect(0,LANE_Y+LANE_H*5,W,H-(LANE_Y+LANE_H*5));
+  for(let y=LANE_Y+LANE_H*5+20;y<H;y+=36){px(0,y,W,4,'#3a2440')}
+  /* penonton pixel */
+  const by=LANE_Y+LANE_H*5;
+  for(let row=0;row<8;row++){
+    px(0,by+10+row*70,W,6,'#3a2440');
+    for(let i=0;i<20;i++){const x=i*38+((i*7+row*5)%13)-6+(row%2)*18,y=by+row*70+(Math.sin(tm*5+i+row)>.9?-4:0);
+      px(x,y+18,22,26,['#ff6b6b','#ffd23d','#6bd5ff','#b06bff','#3ddc6f'][(i+row)%5]);px(x+4,y,14,16,['#f5c9a0','#d9a577','#b87a4f'][(i*3+row)%3])}
+  }
+}
+function drawTrack(tm){
+  for(let i=0;i<5;i++){
+    const y=LANE_Y+i*LANE_H;
+    px(0,y,W,LANE_H,i%2?'#8a5a34':'#9a6a3e');
+    for(let k=0;k<30;k++){px(((k*53+i*17+Math.floor(tm*20))%W),y+((k*29)%LANE_H),6,3,'#7a4c2a')}
+    px(0,y,W,3,'#5a3820');
+  }
+  px(0,LANE_Y+LANE_H*5-3,W,6,'#5a3820');
+  /* ramp */
+  RAMPS.forEach(rp=>{const x=X0+(X1-X0)*rp;for(let i=0;i<5;i++){const y=LANE_Y+i*LANE_H+LANE_H-16;px(x-12,y+8,26,8,'#6a4020');px(x-6,y+2,16,8,'#6a4020')}});
+  /* garisan mula */
+  px(X0-6,LANE_Y,4,LANE_H*5,'#fff');
+  /* garisan penamat berkotak */
+  for(let r=0;r<LANE_H*5/12;r++)for(let c=0;c<2;c++)px(X1+8+c*12,LANE_Y+r*12,12,12,(r+c)%2?'#fff':'#111');
+}
+function drawBike(x,y,r,tm,wheelie){
+  const u=5;
+  ctx.save();ctx.translate(Math.round(x),Math.round(y));
+  if(wheelie)ctx.rotate(-.2);
+  const ph=Math.floor(tm*16+r.i)%2;
+  /* tayar */
+  [[0,-5*u],[10*u,-5*u]].forEach(w=>{px(w[0],w[1],5*u,5*u,'#111');px(w[0]+u,w[1]+u,3*u,3*u,'#555');px(w[0]+(ph?u:2*u),w[1]+(ph?2*u:u),u,u,'#ddd')});
+  /* rangka */
+  px(3*u,-7*u,8*u,2*u,r.col);px(2*u,-8*u,3*u,u,r.dark);
+  px(10*u,-10*u,u,6*u,'#aaa');px(10*u,-11*u,3*u,u,'#333');
+  /* penunggang */
+  px(3*u,-13*u,3*u,6*u,r.col);px(3*u,-13*u,3*u,u,r.dark);
+  px(6*u,-12*u,5*u,2*u,r.col);
+  px(4*u,-17*u,4*u,4*u,'#fff');px(6*u,-16*u,3*u,2*u,'#222');
+  ctx.restore();
+}
+function drawRiders(tm){
+  riders.forEach(r=>{
+    const y=LANE_Y+r.i*LANE_H+LANE_H-14;
+    const x=X0+(X1-X0)*r.pos-20;
+    /* habuk */
+    dust.forEach(d=>{if(d.r===r){px(x+d.ox,y-6+d.y,6,6,'rgba(220,180,130,'+Math.max(0,d.life*1.6)+')')}});
+    const idle=phase==='bet';
+    const bob=idle?Math.sin(tm*8+r.i)*1.5:Math.abs(Math.sin(tm*14+r.i))*3;
+    drawBike(x,y-r.jump-bob,r,tm,r.boost>1.1||r.jump>20);
+    if(r.boost>.6&&phase==='race'){px(x-18,y-30,14,4,'#ffd23d');px(x-28,y-22,18,4,'#ff9a52')}
+  });
+  /* label lorong */
+  riders.forEach(r=>{
+    const y=LANE_Y+r.i*LANE_H+LANE_H/2;
+    ctx.fillStyle=r.dark;ctx.beginPath();ctx.arc(28,y,22,0,7);ctx.fill();
+    ctx.fillStyle=r.col;ctx.beginPath();ctx.arc(28,y,17,0,7);ctx.fill();
+    text(String(r.i+1),28,y+1,24,'#1a0b2e','center',false);
+    if(phase==='bet'||phase==='result')text(r.name,56,y+26,14,'#fff','left');
+  });
+}
+function drawHud(now){
+  /* tajuk */
+  text('LUMBA MOTOCROSS',W/2,38,44,'#ffd23d','center');
+  /* papan */
+  let banner='',sub='';
+  const bet=+betSecEl.value||20;
+  if(phase==='bet'){banner='PILIH PELUMBA: TULIS 1-5';sub='Mula dalam '+Math.max(0,Math.ceil(bet-phaseT))+' saat'}
+  else if(phase==='race'){banner='PERLUMBAAN!';sub=winner>=0?'Penamat!':'Tulis nombor untuk beri tenaga!'}
+  else{banner=resultText;sub=resultSub}
+  pill('',24,70,W-48,86,'rgba(10,5,25,.72)');
+  text(banner,W/2,100,banner.length>26?28:34,'#fff','center');
+  text(sub,W/2,136,20,'#ffe9b0','center');
+  /* papan markah */
+  const top=Object.keys(LB).sort((a,b)=>LB[b]-LB[a]).slice(0,3);
+  pill('',24,166,W-48,44,'rgba(10,5,25,.6)');
+  text('🏆 '+(top.length?top.map((n,i)=>(i+1)+'.'+n+' '+LB[n]).join('  '):'Belum ada pemenang'),W/2,188,20,'#ffd23d','center');
+  /* tiker */
+  const items=ticker.slice(-3);
+  items.forEach((it,i)=>{
+    const age=(now-it.at)/1000,a=Math.max(.35,1-age/18);
+    ctx.globalAlpha=a;pill('',24,222+i*30,W-48,26,'rgba(255,255,255,.14)');
+    text(it.t.slice(0,46),W/2,235+i*30,17,'#fff','center',false);ctx.globalAlpha=1;
+  });
+  /* bilangan penyokong */
+  if(phase==='race'||phase==='result'){
+    riders.forEach(r=>{const y=LANE_Y+r.i*LANE_H+LANE_H/2;const n=Object.keys(r.backers).length;if(n)text(n+'👤',W-30,y,14,'#fff','right',false)})
+  }
+}
+let last=performance.now(),tAcc=0;
+function step(now){
+  const dt=Math.min(.1,(now-last)/1000);last=now;tAcc+=dt;
+  update(dt);
+  ctx.imageSmoothingEnabled=false;
+  drawBg(tAcc);drawTrack(tAcc);drawRiders(tAcc);drawHud(now);
+}
+function loop(now){step(now);requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+/* pemacu latar (tab tersembunyi) */
+try{const wb=new Blob(['setInterval(function(){postMessage(1)},33)'],{type:'text/javascript'});
+  const wk=new Worker(URL.createObjectURL(wb));wk.onmessage=()=>{if(document.hidden)step(performance.now())}}catch(e){}
+
+/* ---------- Saiz ---------- */
+function fit(){
+  const wrap=$('#stageWrap'),clean=document.body.classList.contains('clean'),pad=clean?0:16;
+  const aw=wrap.clientWidth-pad,ah=wrap.clientHeight-pad;
+  const sc=Math.max(.1,Math.min(aw/W,ah/H));
+  cv.style.width=Math.floor(W*sc)+'px';cv.style.height=Math.floor(H*sc)+'px';
+}
+addEventListener('resize',fit);fit();
+
+/* ---------- Kawalan ---------- */
+$('#bGo').onclick=()=>{paused=!paused;$('#bGo').textContent=paused?'▶ Sambung':'⏸ Jeda'};
+$('#bNew').onclick=()=>newRound();
+$('#bClean').onclick=()=>{document.body.classList.add('clean');fit()};
+addEventListener('keydown',e=>{if(e.key==='Escape'){document.body.classList.remove('clean');fit()}});
+$('#bResetLB').onclick=()=>{LB={};saveLB();push('Papan markah dikosongkan')};
+$('#tSend').onclick=()=>{onComment($('#tName').value||'Ujian',$('#tText').value||'1');$('#tText').value=''};
+$('#tRand').onclick=()=>{const n=['Ali','Siti','Amin','Mei','Raju','Dina','Hafiz'][Math.floor(Math.random()*7)]+Math.floor(Math.random()*90);onComment(n,String(1+Math.floor(Math.random()*5)))};
+$('#tGift').onclick=()=>onGift('Dermawan','Rose');
+$('#tJoin').onclick=()=>onJoin('Penonton'+Math.floor(Math.random()*99));
+
+/* ---------- Komen dari skrip Chrome (tab TikTok) ---------- */
+let linkSeen=false;
+addEventListener('message',ev=>{
+  const d=ev.data;if(!d||typeof d!=='object'||d.hosAiSrc!=='tm')return;
+  if(d.hosAiPing&&!linkSeen){linkSeen=true;log('Skrip komen TikTok bersambung');setStatus('Bersambung dengan TikTok.')}
+  if(Array.isArray(d.hosAiBatch)){
+    d.hosAiBatch.slice(0,10).forEach(it=>{
+      if(!it||typeof it.text!=='string')return;
+      const u=String(it.user||'Penonton');
+      if(it.join)onJoin(u);else if(it.gift)onGift(u,it.text);else onComment(u,it.text);
+    });
+  }
+});
+
+/* ---------- Tetingkap terapung ---------- */
+const pv=document.createElement('video');
+pv.muted=true;pv.playsInline=true;
+pv.style.cssText='position:fixed;left:-9999px;top:0;width:4px;height:4px;opacity:0';
+document.body.appendChild(pv);
+let popWin=null;
+function openPopup(){
+  const w=window.open('','lumbastage','width=405,height=720');
+  if(!w)throw new Error('popup disekat');
+  popWin=w;w.document.title='Lumba Motocross';
+  w.document.body.style.cssText='margin:0;background:#000;overflow:hidden';
+  const v=w.document.createElement('video');
+  v.muted=true;v.autoplay=true;v.playsInline=true;
+  v.style.cssText='width:100vw;height:100vh;object-fit:contain;display:block';
+  v.srcObject=cv.captureStream(30);w.document.body.appendChild(v);v.play().catch(()=>{});
+}
+$('#bPip').onclick=async()=>{
+  try{
+    if(document.pictureInPictureElement){await document.exitPictureInPicture();setStatus('Tetingkap ditutup.');return}
+    if(popWin&&!popWin.closed){popWin.close();popWin=null;setStatus('Tetingkap ditutup.');return}
+    if(!pv.srcObject)pv.srcObject=cv.captureStream(30);
+    await pv.play();await pv.requestPictureInPicture();
+    setStatus('Tetingkap terapung dibuka. Tangkap tetingkap itu di LIVE Studio.');
+  }catch(e1){
+    try{openPopup();setStatus('Tetingkap dibuka. Tangkap tetingkap itu di LIVE Studio.')}
+    catch(e2){setStatus('Tak dapat buka tetingkap: '+(e2.message||e2)+'. Benarkan popup.',true)}
+  }
+};
+
+newRound();
+</script>
+</body>
+</html>
