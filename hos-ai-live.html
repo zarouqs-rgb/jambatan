@@ -108,7 +108,7 @@ body.clean #stage{border-radius:0}
       <label>Model teks</label><input data-k="textModel">
       <label>Model suara</label><input data-k="ttsModel">
       <label class="chk"><input type="checkbox" data-k="idleOn"> Hos berbual sendiri bila tiada komen</label>
-      <label>Selang bual sendiri (saat)</label><input type="number" min="4" max="300" data-k="idleSec">
+      <label>Selang bual sendiri (saat)</label><input type="number" min="1" max="300" data-k="idleSec">
       <label>Jenis topik rawak</label>
       <div class="cats" id="cats"></div>
     </details>
@@ -162,10 +162,10 @@ const DEF={name:'Bintang',color:'#ffb347',
   persona:'Kau ceria, ramah dan sedikit nakal. Kau suka berborak tentang apa saja secara rawak dan tidak pakar dalam satu bidang.',
   key:'',textModel:'gemini-2.5-flash',ttsModel:'gemini-2.5-flash-preview-tts',voice:'Kore',
   voiceStyle:'Say this in a Malaysian Malay accent (Bahasa Melayu Malaysia, NOT Indonesian), cheerful, friendly and casual',
-  ttsMode:'auto',rate:1,idleOn:true,idleSec:8,theme:'kampung',inviteOn:true,inviteTxt:'💬 Tulis komen, {nama} jawab!',ver:4,badge:true,showCom:false,orient:'v',ws:'',block:'',
+  ttsMode:'auto',rate:1,idleOn:true,idleSec:2,theme:'kampung',inviteOn:true,inviteTxt:'💬 Tulis komen, {nama} jawab!',ver:5,badge:true,showCom:false,orient:'v',ws:'',block:'',
   cats:{fakta:1,kuiz:1,teka:1,jenaka:1,sains:1,tip:1,pilih:1,cerita:1,sapa:1,bebas:1,lawak:1,ilmu:1,mimpi:1,fikir:1}};
 let S=JSON.parse(JSON.stringify(DEF));
-try{const o=JSON.parse(localStorage.getItem('hosAiLive')||'{}');Object.assign(S,o);S.cats=Object.assign({},DEF.cats,o.cats||{});if(!o.ver||o.ver<4){S.idleSec=8;S.voiceStyle=DEF.voiceStyle;S.ver=4}}catch(e){}
+try{const o=JSON.parse(localStorage.getItem('hosAiLive')||'{}');Object.assign(S,o);S.cats=Object.assign({},DEF.cats,o.cats||{});if(!o.ver||o.ver<5){S.idleSec=2;S.voiceStyle=DEF.voiceStyle;S.ver=5}}catch(e){}
 function save(){try{localStorage.setItem('hosAiLive',JSON.stringify(S))}catch(e){}}
 
 VOICES.forEach(v=>{const o=document.createElement('option');o.value=o.textContent=v;$('#voiceSel').appendChild(o)});
@@ -454,9 +454,27 @@ function nextCat(){
   }
   return bag.pop();
 }
+let idleNext=null;
+function prepIdle(){
+  if(idleNext)return;
+  const cat=nextCat();
+  let p=CATS[cat]+(recent.length?'\nElak mengulang perkara yang baru disebut: '+recent.join(' | '):'')+'\nTiada komen sekarang. Bercakap kepada semua penonton secara berterusan, seperti pembawa rancangan yang tak pernah kehabisan idea. Cakap 2 hingga 3 ayat pendek. Boleh mereka cerita, mengarut, berborak sendiri atau ajak penonton menulis komen.';
+  if(Math.random()<.4)p+='\nMulakan dengan satu ayat pendek yang lucu dan manja kerana sunyi tiada komen (cara baru setiap kali).';
+  const pr=(async()=>{const reply=safeOut(await ask(p));return {reply,segs:planSegs(reply,true),cat}})();
+  pr.catch(()=>{if(idleNext===pr)idleNext=null});idleNext=pr;
+}
 async function idleTalk(){
   curComment=null;commentUntil=0;state='think';caption='';captionUntil=0;
   let p,cat;
+  if(!(pendingQuiz&&Date.now()-pendingQuiz.t>20000)){
+    prepIdle();const pr=idleNext;idleNext=null;
+    let P;try{P=await pr}catch(e){throw e}
+    if(P.cat==='kuiz')pendingQuiz={q:P.reply,t:Date.now()};
+    stats.answered++;renderStats();
+    await speak(P.reply,P.segs);
+    recent.push(P.reply.slice(0,80));if(recent.length>6)recent.shift();
+    return;
+  }
   if(pendingQuiz&&Date.now()-pendingQuiz.t>20000){
     p='Tadi kau bertanya soalan kuiz ini: "'+pendingQuiz.q+'". Dedahkan jawapannya dengan ringkas dan ceria, kemudian sambung dengan satu perkara kecil.';
     pendingQuiz=null;cat='jawapan';
@@ -486,7 +504,7 @@ async function run(fn){
 function tick(){
   if(!running)return;
   const now=Date.now();
-  if(busy){if(queue.length&&!queue[0]._p&&now>=errUntil)prep(queue[0]);return}
+  if(busy){if(queue.length&&!queue[0]._p&&now>=errUntil)prep(queue[0]);else if(!queue.length&&S.idleOn&&!idleNext&&now>=errUntil)prepIdle();return}
   if(now<errUntil||now-lastSpoke<300)return;
   if(queue.length){const it=queue.shift();renderQueue();run(()=>answer(it));return}
   if(S.idleOn&&now-lastSpoke>S.idleSec*1000)run(idleTalk);
