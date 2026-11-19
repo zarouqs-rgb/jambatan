@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hos AI - Komen TikTok
 // @namespace    https://github.com/zarouqs-rgb/jambatan
-// @version      1.5
+// @version      1.6
 // @description  Baca komen LIVE TikTok (baca sahaja) dan hantar ke app Hos AI Live dalam Gemini Canvas.
 // @match        https://www.tiktok.com/*
 // @match        https://gemini.google.com/*
@@ -112,7 +112,7 @@
         var c2 = cvs.getContext('2d', { willReadFrequently: true });
         var tiny = document.createElement('canvas'); tiny.width = 48; tiny.height = 48;
         var tc = tiny.getContext('2d', { willReadFrequently: true });
-        var prev = null, sent = null, same = 0;
+        var prev = null, sent = null, same = 0, lastSend = 0;
         btn.textContent = '⏹ Berhenti tangkap';
         /* pratonton kecil, boleh diseret ke mana-mana */
         prevBox = document.createElement('div');
@@ -137,10 +137,12 @@
           var diff = 0;
           if (prev) for (var k = 0; k < cur.length; k++) if (cur[k] !== prev[k]) diff++;
           prev = cur;
-          if (diff > 8) { same = 0; return; }       /* masih bergerak */
-          same++;
-          if (same < 2 || cur === sent) return;     /* tunggu berhenti 2 kali, jangan hantar sama */
-          sent = cur;
+          if (diff > 8) same = 0; else same++;
+          var now = Date.now();
+          /* hantar bila sudah berhenti 2 kali, ATAU paksa setiap 5 saat walaupun komen masih laju */
+          if (!(same >= 2 || now - lastSend > 5000)) return;
+          if (cur === sent) return;
+          sent = cur; lastSend = now;
           bc(window, { hosAiSrc: 'tm', hosAiImg: cvs.toDataURL('image/jpeg', 0.7) }, 0);
           setG('Hos AI: gambar komen dihantar');
         }, 1500);
