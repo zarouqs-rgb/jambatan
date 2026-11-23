@@ -120,12 +120,16 @@ async function gem(kind,body){
     const r=await fetch(API+M[kind]+':generateContent?key='+encodeURIComponent($('gkey').value.trim()),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(r.ok) return r.json();
     if(r.status===404&&!M.redo){M.redo=1;M.text='';M.tts='';await discover();continue;}
-    if((r.status===429||r.status>=500)&&i<4){
-      const w=r.status===429?25:4;
-      for(let s=w;s>0;s--){status('Had penggunaan penuh, cuba semula dalam '+s+' saat…');await sleep(1000);}
+    let em={},m='';try{em=(await r.json()).error||{};m=em.message||''}catch(e){}
+    if(r.status===429){
+      let d=0;try{const ri=(em.details||[]).find(x=>/RetryInfo/.test(x['@type']||''));if(ri&&ri.retryDelay)d=Math.ceil(parseFloat(ri.retryDelay));}catch(e){}
+      const daily=/per.?day|daily|limit:\s*0|billing|exceeded your current quota/i.test(m)&&(!d||d>90);
+      if(daily||d>90||i>=4) throw new Error('Kuota Gemini habis (429). '+m.slice(0,220));
+      const w=(d||25)+1;
+      for(let q=w;q>0;q--){status('Had kadar Gemini penuh. Tunggu '+q+' saat, kemudian sambung sendiri…');await sleep(1000);}
       continue;
     }
-    let m='';try{m=(await r.json()).error.message}catch(e){}
+    if(r.status>=500&&i<4){for(let q=4;q>0;q--){status('Gemini sibuk. Cuba semula dalam '+q+' saat…');await sleep(1000);}continue;}
     if((r.status===403||r.status===400||r.status===401)&&!$('gkey').value.trim()){
       $('kd').open=true;$('gkey').focus();
       throw new Error('Tiada kunci API. Ambil kunci percuma di aistudio.google.com/apikey, tampal dalam kotak Kunci API di bawah, kemudian tekan Jana suara semula.');
@@ -159,7 +163,7 @@ async function getFrames(){
 }
 
 async function makeScript(frames,dur){
-  const nseg=Math.min(8,Math.max(3,Math.round(dur/4)));
+  const nseg=Math.min(5,Math.max(3,Math.round(dur/6)));
   const tone=$('tone').value;
   const intro='Kau penulis suara latar (voice-over) untuk video pendek menegak. Video ini '+dur.toFixed(1)+' saat. '+
   'Di bawah ialah bingkai-bingkai daripada video itu, setiap satu dengan cap masa. Fahami apa yang sebenarnya berlaku: visual, pergerakan, perubahan antara bingkai dan teks yang tertulis di skrin. '+
