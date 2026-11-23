@@ -74,8 +74,8 @@ a.dl{display:block;text-align:center;padding:14px;border-radius:10px;background:
 </div>
 
 <div class="w">
-<details><summary>Kunci API (pilihan)</summary>
-  <label for="gkey">Kosongkan jika Gemini Canvas sudah beri kunci sendiri</label>
+<details id="kd"><summary>Kunci API (pilihan)</summary>
+  <label for="gkey">Kosongkan jika dalam Gemini Canvas. Kunci percuma: <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#7db3ff">aistudio.google.com/apikey</a></label>
   <input id="gkey" type="password" autocomplete="off">
 </details>
 </div>
@@ -108,6 +108,10 @@ async function gem(model,body){
       continue;
     }
     let m='';try{m=(await r.json()).error.message}catch(e){}
+    if((r.status===403||r.status===400||r.status===401)&&!$('gkey').value.trim()){
+      $('kd').open=true;$('gkey').focus();
+      throw new Error('Tiada kunci API. Ambil kunci percuma di aistudio.google.com/apikey, tampal dalam kotak Kunci API di bawah, kemudian tekan Jana suara semula.');
+    }
     throw new Error('Gemini '+r.status+(m?': '+m:''));
   }
 }
