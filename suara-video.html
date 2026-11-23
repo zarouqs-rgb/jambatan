@@ -360,9 +360,23 @@ $('play').addEventListener('click',()=>{
 });
 
 function showLink(blob,name,label){
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download=name;a.className='dl';a.textContent=label+' ('+(blob.size/1048576).toFixed(1)+' MB)';
-  const box=$('dls');box.insertBefore(a,box.firstChild);
+  const url=URL.createObjectURL(blob), mb=(blob.size/1048576).toFixed(1)+' MB';
+  const wrap=document.createElement('div');wrap.style.marginBottom='12px';
+  const a=document.createElement('a');a.href=url;a.download=name;a.className='dl';a.textContent=label+' ('+mb+')';
+  wrap.appendChild(a);
+  const file=new File([blob],name,{type:blob.type});
+  if(navigator.canShare&&navigator.share&&navigator.canShare({files:[file]})){
+    const sb=document.createElement('button');sb.className='p';sb.style.cssText='width:100%;margin-bottom:8px';sb.textContent='Kongsi / simpan ke telefon';
+    sb.onclick=async()=>{try{await navigator.share({files:[file],title:name});}catch(e){if(e&&e.name!=='AbortError')status('Kongsi tak berjaya: '+(e.message||e),true);}};
+    wrap.appendChild(sb);
+  }
+  const pv=document.createElement(blob.type.startsWith('video')?'video':'audio');
+  pv.src=url;pv.controls=true;pv.playsInline=true;pv.style.cssText='width:100%;border-radius:12px;background:#000';
+  wrap.appendChild(pv);
+  const tip=document.createElement('small');tip.style.cssText='display:block;color:#9fb0c2;margin-top:4px';
+  tip.textContent='Kalau butang hijau tak boleh simpan, tekan menu ⋮ pada pemain di atas dan pilih Muat turun, atau guna Kongsi.';
+  wrap.appendChild(tip);
+  const box=$('dls');box.insertBefore(wrap,box.firstChild);
   try{a.click();}catch(e){}
 }
 
