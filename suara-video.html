@@ -182,12 +182,41 @@ async function makeScript(frames,dur){
   return a;
 }
 
-async function tts(text){
-  const voice=$('voice').value, tone=$('tone').value, k=voice+'|'+tone+'|'+text;
+function trimSil(d,rate){
+  const th=0.012; let a=0,b=d.length-1;
+  while(a<b&&Math.abs(d[a])<th) a++;
+  while(b>a&&Math.abs(d[b])<th) b--;
+  a=Math.max(0,a-Math.floor(rate*.03)); b=Math.min(d.length-1,b+Math.floor(rate*.08));
+  return d.subarray(a,b+1);
+}
+function splitBySilence(d,rate,texts){
+  const win=Math.floor(rate*.02), n=Math.floor(d.length/win), rms=new Float32Array(n); let mx=0;
+  for(let i=0;i<n;i++){let s=0;for(let j=0;j<win;j++){const v=d[i*win+j];s+=v*v}rms[i]=Math.sqrt(s/win);if(rms[i]>mx)mx=rms[i]}
+  const thr=mx*.04, runs=[]; let st0=-1, first=0, last=n;
+  while(first<n&&rms[first]<thr) first++;
+  while(last>first&&rms[last-1]<thr) last--;
+  for(let i=first;i<=last;i++){ const q=i<last&&rms[i]<thr;
+    if(q&&st0<0) st0=i; if(!q&&st0>=0){ const l=(i-st0)*.02; if(l>=.12) runs.push({a:st0*.02,e:i*.02,c:(st0+i)/2*.02,l}); st0=-1 } }
+  const t0=first*.02, t1=last*.02, span=t1-t0, chars=texts.map(t=>t.length), tot=chars.reduce((x,y)=>x+y,0);
+  const b=[t0]; let acc=0;
+  for(let k=0;k<texts.length-1;k++){
+    acc+=chars[k]; const exp=t0+acc/tot*span; let best=null,bs=-1e9;
+    for(const r of runs){ const dd=Math.abs(r.c-exp);
+      if(dd<span*.15&&r.c>b[b.length-1]+.3){const sc=r.l*2-dd/span*3; if(sc>bs){bs=sc;best=r}} }
+    b.push(best?best.c:exp);
+  }
+  b.push(t1);
+  return texts.map((_,i)=>{ const a=Math.max(0,Math.floor(b[i]*rate)), e=Math.min(d.length,Math.ceil(b[i+1]*rate)); return trimSil(d.subarray(a,e),rate); });
+}
+
+async function ttsAll(texts){
+  const voice=$('voice').value, tone=$('tone').value;
+  const joined=texts.map(t=>t.replace(/\s+/g,' ').replace(/([^.!?…])$/,'$1.')).join('\n\n');
+  const k=voice+'|'+tone+'|'+joined;
   if(cache.has(k)) return cache.get(k);
-  const j=await gem('tts',{contents:[{parts:[{text:'Bacakan dalam Bahasa Melayu Malaysia, nada '+tone+', jelas dan semula jadi: '+text}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}}});
+  const j=await gem('tts',{contents:[{parts:[{text:'Say in a clear, friendly narrator tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation), style: '+tone+': '+joined}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}}});
   const p=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts.find(x=>x.inlineData);
-  if(!p) throw new Error('Suara tak dijana untuk: '+text.slice(0,30));
+  if(!p) throw new Error('Suara tak dijana. Cuba tekan sekali lagi.');
   const bin=atob(p.inlineData.data), n=bin.length>>1, f=new Float32Array(n);
   for(let i=0;i<n;i++){let s=bin.charCodeAt(2*i)|(bin.charCodeAt(2*i+1)<<8);if(s>=32768)s-=65536;f[i]=s/32768;}
   cache.set(k,f);return f;
@@ -206,12 +235,11 @@ function renderSegs(){
 }
 
 async function makeAudio(){
-  pcm=[];
-  for(let i=0;i<segs.length;i++){
-    status('Menjana suara '+(i+1)+' / '+segs.length+'…');
-    pcm.push(await tts(segs[i].text));
-    prog(0.3+0.7*(i+1)/segs.length);
-  }
+  status('Menjana suara (sekali jalan supaya nada sekata)…');prog(0.4);
+  const full=await ttsAll(segs.map(s=>s.text));
+  prog(0.9);
+  pcm=segs.length>1?splitBySilence(full,SR,segs.map(s=>s.text)):[trimSil(full,SR)];
+  prog(1);
 }
 
 function plan(){
