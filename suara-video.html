@@ -222,9 +222,19 @@ async function ttsAll(texts){
   const joined=texts.map(t=>t.replace(/\s+/g,' ').replace(/([^.!?…])$/,'$1.')).join('\n\n');
   const k=voice+'|'+tone+'|'+joined;
   if(cache.has(k)) return cache.get(k);
-  const j=await gem('tts',mdl=>({contents:[{parts:[{text:joined}]}],generationConfig:{temperature:0.3,responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}}}));
-  const p=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts.find(x=>x.inlineData);
-  if(!p) throw new Error('Suara tak dijana. Cuba tekan sekali lagi.');
+  let p=null,why='';
+  for(let t=0;t<5&&!p;t++){
+    const j=await gem('tts',mdl=>({contents:[{parts:[{text:joined}]}],generationConfig:{temperature:0.3,responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}}}));
+    const c=(j.candidates||[])[0], parts=(c&&c.content&&c.content.parts)||[];
+    p=parts.find(x=>x.inlineData);
+    if(!p){
+      why=(c&&c.finishReason)||(j.promptFeedback&&j.promptFeedback.blockReason)||'tiada audio';
+      if(t>=1&&M.L.tts&&M.ix.tts+1<M.L.tts.length){M.ix.tts++;M.tts=M.L.tts[M.ix.tts];status('Suara kosong ('+why+'). Tukar ke '+M.tts+'…');}
+      else status('Suara kosong ('+why+'). Cuba semula…');
+      await sleep(1500);
+    }
+  }
+  if(!p) throw new Error('Gemini tak pulangkan suara ('+why+'). Tekan Jana suara sekali lagi.');
   const bin=atob(p.inlineData.data), n=bin.length>>1, f=new Float32Array(n);
   for(let i=0;i<n;i++){let s=bin.charCodeAt(2*i)|(bin.charCodeAt(2*i+1)<<8);if(s>=32768)s-=65536;f[i]=s/32768;}
   cache.set(k,f);return f;
