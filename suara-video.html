@@ -100,6 +100,10 @@ $('file').addEventListener('change',e=>{
 
 const M={text:'',tts:'',redo:0,L:{text:[],tts:[]},ix:{text:0,tts:0}};
 async function discover(){
+  if(!$('gkey').value.trim()){
+    M.L.text=['gemini-2.5-flash-preview-09-2025','gemini-2.5-flash','gemini-3.8-flash'];M.L.tts=['gemini-2.5-flash-preview-tts'];
+    M.ix={text:0,tts:0};M.text=M.L.text[0];M.tts=M.L.tts[0];return;
+  }
   try{
     const r=await fetch(API.slice(0,-1)+'?pageSize=200&key='+encodeURIComponent($('gkey').value.trim()));
     if(r.ok){
@@ -137,6 +141,9 @@ async function gem(kind,bodyOrFn){
       if(i>=1&&M.L[kind]&&M.ix[kind]+1<M.L[kind].length){M.ix[kind]++;M[kind]=M.L[kind][M.ix[kind]];status('Model sibuk. Tukar ke '+M[kind]+'…');await sleep(1200);continue;}
       if(i>=7) throw new Error('Gemini sibuk (503). Cuba lagi sebentar lagi. '+m.slice(0,120));
       for(let q=6;q>0;q--){status('Gemini sibuk. Cuba semula dalam '+q+' saat…');await sleep(1000);}continue;
+    }
+    if([400,401,403,404].includes(r.status)&&!$('gkey').value.trim()&&M.L[kind]&&M.ix[kind]+1<M.L[kind].length){
+      M.ix[kind]++;M[kind]=M.L[kind][M.ix[kind]];continue;
     }
     if((r.status===403||r.status===400||r.status===401)&&!$('gkey').value.trim()){
       $('kd').open=true;$('gkey').focus();
