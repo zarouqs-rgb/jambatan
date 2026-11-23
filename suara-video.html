@@ -109,6 +109,7 @@ async function discover(){
       const srt=a=>a.sort((x,y)=>ver(y)-ver(x));
       M.L.text=srt(ms.filter(n=>/^gemini-\d+(\.\d+)?-flash$/.test(n))).concat(srt(ms.filter(n=>/^gemini-\d+(\.\d+)?-flash-lite$/.test(n))));
       M.L.tts=srt(ms.filter(n=>/flash/.test(n)&&/tts/.test(n))).concat(srt(ms.filter(n=>/tts/.test(n)&&!/flash/.test(n))));
+      const pref=M.L.tts.indexOf('gemini-2.5-flash-preview-tts');if(pref>0){M.L.tts.unshift(M.L.tts.splice(pref,1)[0]);}
       M.ix={text:0,tts:0};
       M.text=M.L.text[0]||'';M.tts=M.L.tts[0]||'';
     }
@@ -116,9 +117,10 @@ async function discover(){
   if(!M.text)M.text='gemini-3.8-flash';
   if(!M.tts)M.tts='gemini-2.5-flash-preview-tts';
 }
-async function gem(kind,body){
+async function gem(kind,bodyOrFn){
   if(!M[kind])await discover();
   for(let i=0;i<9;i++){
+    const body=typeof bodyOrFn==='function'?bodyOrFn(M[kind]):bodyOrFn;
     const r=await fetch(API+M[kind]+':generateContent?key='+encodeURIComponent($('gkey').value.trim()),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(r.ok) return r.json();
     if(r.status===404&&!M.redo){M.redo=1;M.text='';M.tts='';await discover();continue;}
@@ -220,7 +222,7 @@ async function ttsAll(texts){
   const joined=texts.map(t=>t.replace(/\s+/g,' ').replace(/([^.!?…])$/,'$1.')).join('\n\n');
   const k=voice+'|'+tone+'|'+joined;
   if(cache.has(k)) return cache.get(k);
-  const j=await gem('tts',{contents:[{parts:[{text:'Say in a clear, friendly narrator tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation), style: '+tone+': '+joined}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}}});
+  const j=await gem('tts',mdl=>({contents:[{parts:[{text:joined}]}],generationConfig:{temperature:0.3,responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}}}));
   const p=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts.find(x=>x.inlineData);
   if(!p) throw new Error('Suara tak dijana. Cuba tekan sekali lagi.');
   const bin=atob(p.inlineData.data), n=bin.length>>1, f=new Float32Array(n);
