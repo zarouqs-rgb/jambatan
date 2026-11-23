@@ -33,7 +33,7 @@ a.dl{display:block;text-align:center;padding:14px;border-radius:10px;background:
 <h1>Suara Video</h1>
 
 <div class="w">
-  <label class="file" id="pick" style="display:block">Pilih video<input id="file" type="file" accept="video/*" hidden></label>
+  <label class="file" id="pick" style="display:block;position:relative;overflow:hidden">Pilih video<input id="file" type="file" accept="video/*" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0"></label>
 </div>
 <div class="w"><video id="vid" playsinline muted controls preload="auto"></video></div>
 
@@ -91,12 +91,30 @@ $('gkey').addEventListener('input',()=>{try{localStorage.setItem('sv_key',$('gke
 function status(m,err){const s=$('st');s.textContent=m;s.className=err?'err':'';}
 function prog(p){$('bar').firstChild.style.width=Math.round(p*100)+'%';}
 
-$('file').addEventListener('change',e=>{
-  const f=e.target.files[0]; if(!f)return;
-  $('vid').src=URL.createObjectURL(f);
-  segs=[];pcm=[];$('out').style.display='none';prog(0);
-  status('Video dimuat: '+f.name);
-});
+function loadVideo(f){
+  const v=$('vid');
+  segs=[];pcm=[];$('out').style.display='none';prog(0);stopAll();
+  status('Memuatkan video… '+(f.size/1048576).toFixed(1)+' MB');
+  let done=false, tried=false;
+  const ok=()=>{if(done)return;done=true;status('Video dimuat: '+f.name+' ('+(v.duration||0).toFixed(1)+' saat)');};
+  const viaData=()=>{
+    if(tried)return;tried=true;status('Cuba kaedah lain untuk muat video…');
+    const fr=new FileReader();
+    fr.onload=()=>{v.src=fr.result;v.load();};
+    fr.onerror=()=>status('Video tak boleh dibaca. Cuba pilih semula.',true);
+    fr.readAsDataURL(f);
+  };
+  v.onloadedmetadata=ok;
+  v.onerror=()=>{
+    if(!tried)viaData();
+    else status('Video tak boleh dimainkan di sini (kod '+(v.error&&v.error.code)+'). Cuba video MP4 lain.',true);
+  };
+  try{v.src=URL.createObjectURL(f);v.load();}catch(e){viaData();}
+  setTimeout(()=>{if(!done&&!tried&&v.readyState===0)viaData();},3500);
+}
+function onPick(e){const f=e.target.files&&e.target.files[0];if(f)loadVideo(f);}
+$('file').addEventListener('change',onPick);
+$('file').addEventListener('input',onPick);
 
 const M={text:'',tts:'',redo:0,L:{text:[],tts:[]},ix:{text:0,tts:0}};
 async function discover(){
