@@ -98,7 +98,7 @@ $('file').addEventListener('change',e=>{
   status('Video dimuat: '+f.name);
 });
 
-const M={text:'',tts:'',redo:0};
+const M={text:'',tts:'',redo:0,L:{text:[],tts:[]},ix:{text:0,tts:0}};
 async function discover(){
   try{
     const r=await fetch(API.slice(0,-1)+'?pageSize=200&key='+encodeURIComponent($('gkey').value.trim()));
@@ -106,9 +106,11 @@ async function discover(){
       const j=await r.json();
       const ms=(j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace('models/',''));
       const ver=n=>{const m=n.match(/gemini-(\d+(?:\.\d+)?)/);return m?parseFloat(m[1]):0;};
-      const best=a=>a.sort((x,y)=>ver(y)-ver(x))[0]||'';
-      M.text=best(ms.filter(n=>/^gemini-\d+(\.\d+)?-flash$/.test(n)));
-      M.tts=best(ms.filter(n=>/flash/.test(n)&&/tts/.test(n)))||best(ms.filter(n=>/tts/.test(n)));
+      const srt=a=>a.sort((x,y)=>ver(y)-ver(x));
+      M.L.text=srt(ms.filter(n=>/^gemini-\d+(\.\d+)?-flash$/.test(n))).concat(srt(ms.filter(n=>/^gemini-\d+(\.\d+)?-flash-lite$/.test(n))));
+      M.L.tts=srt(ms.filter(n=>/flash/.test(n)&&/tts/.test(n))).concat(srt(ms.filter(n=>/tts/.test(n)&&!/flash/.test(n))));
+      M.ix={text:0,tts:0};
+      M.text=M.L.text[0]||'';M.tts=M.L.tts[0]||'';
     }
   }catch(e){}
   if(!M.text)M.text='gemini-3.8-flash';
@@ -116,7 +118,7 @@ async function discover(){
 }
 async function gem(kind,body){
   if(!M[kind])await discover();
-  for(let i=0;i<5;i++){
+  for(let i=0;i<9;i++){
     const r=await fetch(API+M[kind]+':generateContent?key='+encodeURIComponent($('gkey').value.trim()),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(r.ok) return r.json();
     if(r.status===404&&!M.redo){M.redo=1;M.text='';M.tts='';await discover();continue;}
@@ -124,12 +126,16 @@ async function gem(kind,body){
     if(r.status===429){
       let d=0;try{const ri=(em.details||[]).find(x=>/RetryInfo/.test(x['@type']||''));if(ri&&ri.retryDelay)d=Math.ceil(parseFloat(ri.retryDelay));}catch(e){}
       const daily=/per.?day|daily|limit:\s*0|billing|exceeded your current quota/i.test(m)&&(!d||d>90);
-      if(daily||d>90||i>=4) throw new Error('Kuota Gemini habis (429). '+m.slice(0,220));
+      if(daily||d>90||i>=8) throw new Error('Kuota Gemini habis (429). '+m.slice(0,220));
       const w=(d||25)+1;
       for(let q=w;q>0;q--){status('Had kadar Gemini penuh. Tunggu '+q+' saat, kemudian sambung sendiri…');await sleep(1000);}
       continue;
     }
-    if(r.status>=500&&i<4){for(let q=4;q>0;q--){status('Gemini sibuk. Cuba semula dalam '+q+' saat…');await sleep(1000);}continue;}
+    if(r.status>=500){
+      if(i>=1&&M.L[kind]&&M.ix[kind]+1<M.L[kind].length){M.ix[kind]++;M[kind]=M.L[kind][M.ix[kind]];status('Model sibuk. Tukar ke '+M[kind]+'…');await sleep(1200);continue;}
+      if(i>=7) throw new Error('Gemini sibuk (503). Cuba lagi sebentar lagi. '+m.slice(0,120));
+      for(let q=6;q>0;q--){status('Gemini sibuk. Cuba semula dalam '+q+' saat…');await sleep(1000);}continue;
+    }
     if((r.status===403||r.status===400||r.status===401)&&!$('gkey').value.trim()){
       $('kd').open=true;$('gkey').focus();
       throw new Error('Tiada kunci API. Ambil kunci percuma di aistudio.google.com/apikey, tampal dalam kotak Kunci API di bawah, kemudian tekan Jana suara semula.');
