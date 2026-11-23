@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Suara Video</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0f1419;color:#e6e9ee;font-family:system-ui,sans-serif;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.w{width:min(100%,440px)}
+h1{font-size:20px;margin:4px 0 0;text-align:center}
+.row{display:flex;gap:8px}
+button,.file{flex:1;padding:14px 8px;border:0;border-radius:10px;font-size:15px;font-weight:600;background:#2a3440;color:#e6e9ee;text-align:center;cursor:pointer}
+button.p{background:#3b82f6;color:#fff}
+button.g{background:#16a34a;color:#fff}
+button:disabled{opacity:.45}
+#st{font-size:13px;color:#9fb0c2;min-height:18px;text-align:center}
+#st.err{color:#ff8a8a}
+video{width:100%;max-height:60vh;border-radius:12px;background:#000;display:block}
+label{display:block;font-size:12px;color:#9fb0c2;margin:8px 0 3px}
+select,input[type=password],textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #2f3b48;background:#10161c;color:#e6e9ee;font-size:15px;font-family:inherit}
+textarea{min-height:74px;resize:vertical}
+details{background:#1a2129;border:1px solid #2a3440;border-radius:12px;padding:10px}
+summary{cursor:pointer;font-weight:600}
+.seg{background:#1a2129;border:1px solid #2a3440;border-radius:12px;padding:10px;margin-bottom:8px}
+.seg small{color:#9fb0c2}
+a.dl{display:block;text-align:center;padding:14px;border-radius:10px;background:#16a34a;color:#fff;font-weight:600;text-decoration:none;margin-bottom:8px}
+#bar{height:6px;background:#2a3440;border-radius:3px;overflow:hidden}
+#bar i{display:block;height:100%;width:0;background:#3b82f6;transition:width .3s}
+</style>
+</head>
+<body>
+<h1>Suara Video</h1>
+
+<div class="w">
+  <label class="file" id="pick" style="display:block">Pilih video<input id="file" type="file" accept="video/*" hidden></label>
+</div>
+<div class="w"><video id="vid" playsinline muted controls preload="auto"></video></div>
+
+<div class="w row">
+  <div style="flex:1"><label for="voice">Suara</label>
+    <select id="voice">
+      <option value="Kore" selected>Kore</option><option value="Puck">Puck</option><option value="Charon">Charon</option>
+      <option value="Fenrir">Fenrir</option><option value="Aoede">Aoede</option><option value="Leda">Leda</option>
+      <option value="Orus">Orus</option><option value="Zephyr">Zephyr</option><option value="Algieba">Algieba</option>
+    </select></div>
+  <div style="flex:1"><label for="tone">Gaya</label>
+    <select id="tone">
+      <option value="santai dan mesra" selected>Santai</option>
+      <option value="bertenaga dan memotivasikan">Bertenaga</option>
+      <option value="tenang dan jelas, seperti guru">Tenang</option>
+      <option value="ceria seperti pengacara">Ceria</option>
+    </select></div>
+</div>
+
+<div class="w"><button class="p" id="go" style="width:100%;font-size:17px">Jana suara</button></div>
+<div class="w"><div id="bar"><i></i></div></div>
+<div class="w" id="st"></div>
+
+<div class="w" id="out" style="display:none">
+  <div id="segs"></div>
+  <div class="row" style="margin-bottom:8px">
+    <button id="redo">Jana semula (teks diedit)</button>
+  </div>
+  <div class="row" style="margin-bottom:8px">
+    <button class="p" id="play">Main dengan suara</button>
+    <button id="stop">Henti</button>
+  </div>
+  <div class="row" style="margin-bottom:8px">
+    <button class="g" id="savev">Simpan video bersuara</button>
+    <button class="g" id="savew">Simpan suara (WAV)</button>
+  </div>
+  <div id="dls"></div>
+</div>
+
+<div class="w">
+<details><summary>Kunci API (pilihan)</summary>
+  <label for="gkey">Kosongkan jika Gemini Canvas sudah beri kunci sendiri</label>
+  <input id="gkey" type="password" autocomplete="off">
+</details>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const SR=24000, API='https://generativelanguage.googleapis.com/v1beta/models/';
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let segs=[], pcm=[], cache=new Map(), actx=null, srcs=[], timers=[], busy=false;
+try{$('gkey').value=localStorage.getItem('sv_key')||''}catch(e){}
+$('gkey').addEventListener('input',()=>{try{localStorage.setItem('sv_key',$('gkey').value.trim())}catch(e){}});
+
+function status(m,err){const s=$('st');s.textContent=m;s.className=err?'err':'';}
+function prog(p){$('bar').firstChild.style.width=Math.round(p*100)+'%';}
+
+$('file').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f)return;
+  $('vid').src=URL.createObjectURL(f);
+  segs=[];pcm=[];$('out').style.display='none';prog(0);
+  status('Video dimuat: '+f.name);
+});
+
+async function gem(model,body){
+  for(let i=0;i<4;i++){
+    const r=await fetch(API+model+':generateContent?key='+encodeURIComponent($('gkey').value.trim()),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(r.ok) return r.json();
+    if((r.status===429||r.status>=500)&&i<3){
+      const w=r.status===429?25:4;
+      for(let s=w;s>0;s--){status('Had penggunaan penuh, cuba semula dalam '+s+' saat…');await sleep(1000);}
+      continue;
+    }
+    let m='';try{m=(await r.json()).error.message}catch(e){}
+    throw new Error('Gemini '+r.status+(m?': '+m:''));
+  }
+}
+
+function seek(v,t){
+  return new Promise(res=>{
+    let done=false;const f=()=>{if(done)return;done=true;v.removeEventListener('seeked',f);res();};
+    v.addEventListener('seeked',f);v.currentTime=t;setTimeout(f,2500);
+  });
+}
+async function getFrames(){
+  const v=$('vid'), d=v.duration;
+  if(!d||!isFinite(d)) throw new Error('Video belum sedia. Tunggu sekejap dan cuba lagi.');
+  const n=Math.min(12,Math.max(4,Math.round(d/2.5)));
+  const sc=Math.min(1,640/Math.max(v.videoWidth,v.videoHeight));
+  const c=document.createElement('canvas');c.width=Math.round(v.videoWidth*sc);c.height=Math.round(v.videoHeight*sc);
+  const x=c.getContext('2d'), out=[];
+  for(let i=0;i<n;i++){
+    const t=Math.min(d-0.05,(i+0.5)*d/n);
+    await seek(v,t);
+    x.drawImage(v,0,0,c.width,c.height);
+    out.push({t,b64:c.toDataURL('image/jpeg',0.72).split(',')[1]});
+    prog(0.05+0.2*(i+1)/n);
+  }
+  await seek(v,0);
+  return {frames:out,dur:d};
+}
+
+async function makeScript(frames,dur){
+  const nseg=Math.min(8,Math.max(3,Math.round(dur/4)));
+  const tone=$('tone').value;
+  const intro='Kau penulis suara latar (voice-over) untuk video pendek menegak. Video ini '+dur.toFixed(1)+' saat. '+
+  'Di bawah ialah bingkai-bingkai daripada video itu, setiap satu dengan cap masa. Fahami apa yang sebenarnya berlaku: visual, pergerakan, perubahan antara bingkai dan teks yang tertulis di skrin. '+
+  'Tulis suara latar Bahasa Melayu Malaysia yang '+tone+', yang padan dengan apa yang sedang kelihatan pada masa itu. '+
+  'Pecahkan kepada kira-kira '+nseg+' segmen berturutan mengikut perubahan adegan, bermula pada 0 dan tamat tidak lebih daripada '+dur.toFixed(1)+' saat. '+
+  'Setiap segmen ada start, end (saat) dan text. Bilangan perkataan setiap segmen kira-kira (end - start) darab 2.2, supaya muat dalam masa itu. '+
+  'Jangan reka apa-apa yang tak kelihatan. Jangan sebut perkataan "bingkai", "video" atau "skrin". Ayat pendek, senang dibaca kuat. Jawab JSON sahaja.';
+  const parts=[{text:intro}];
+  frames.forEach(f=>{parts.push({text:'Bingkai pada '+f.t.toFixed(1)+' saat:'});parts.push({inlineData:{mimeType:'image/jpeg',data:f.b64}});});
+  const j=await gem('gemini-2.5-flash',{contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json',thinkingConfig:{thinkingBudget:0},responseSchema:{type:'ARRAY',items:{type:'OBJECT',properties:{start:{type:'NUMBER'},end:{type:'NUMBER'},text:{type:'STRING'}},required:['start','end','text']}}}});
+  const raw=(j.candidates&&j.candidates[0]&&j.candidates[0].content.parts.map(p=>p.text||'').join(''))||'';
+  let a;try{a=JSON.parse(raw)}catch(e){throw new Error('Skrip tak dapat dibaca. Cuba tekan Jana suara sekali lagi.')}
+  a=a.filter(s=>s&&typeof s.text==='string'&&s.text.trim()).map(s=>({start:Math.max(0,+s.start||0),end:Math.min(dur,Math.max(+s.end||0,(+s.start||0)+1)),text:s.text.trim()}));
+  if(!a.length) throw new Error('Tiada skrip dijana. Cuba lagi.');
+  a.sort((p,q)=>p.start-q.start);
+  return a;
+}
+
+async function tts(text){
+  const voice=$('voice').value, tone=$('tone').value, k=voice+'|'+tone+'|'+text;
+  if(cache.has(k)) return cache.get(k);
+  const j=await gem('gemini-2.5-flash-preview-tts',{contents:[{parts:[{text:'Bacakan dalam Bahasa Melayu Malaysia, nada '+tone+', jelas dan semula jadi: '+text}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}}});
+  const p=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts.find(x=>x.inlineData);
+  if(!p) throw new Error('Suara tak dijana untuk: '+text.slice(0,30));
+  const bin=atob(p.inlineData.data), n=bin.length>>1, f=new Float32Array(n);
+  for(let i=0;i<n;i++){let s=bin.charCodeAt(2*i)|(bin.charCodeAt(2*i+1)<<8);if(s>=32768)s-=65536;f[i]=s/32768;}
+  cache.set(k,f);return f;
+}
+
+function renderSegs(){
+  const box=$('segs');box.innerHTML='';
+  segs.forEach((s,i)=>{
+    const d=document.createElement('div');d.className='seg';
+    const sm=document.createElement('small');sm.textContent=s.start.toFixed(1)+'s – '+s.end.toFixed(1)+'s';
+    const ta=document.createElement('textarea');ta.value=s.text;
+    ta.addEventListener('input',()=>{segs[i].text=ta.value;});
+    d.appendChild(sm);d.appendChild(ta);box.appendChild(d);
+  });
+  $('out').style.display='block';
+}
+
+async function makeAudio(){
+  pcm=[];
+  for(let i=0;i<segs.length;i++){
+    status('Menjana suara '+(i+1)+' / '+segs.length+'…');
+    pcm.push(await tts(segs[i].text));
+    prog(0.3+0.7*(i+1)/segs.length);
+  }
+}
+
+function plan(){
+  let t=0;
+  return segs.map((s,i)=>{
+    const len=pcm[i].length/SR, slot=Math.max(0.5,s.end-s.start);
+    const rate=Math.min(1.25,Math.max(1,len/slot));
+    const dur=len/rate, st=Math.max(s.start,t);
+    t=st+dur+0.12;
+    return {st,dur,rate};
+  });
+}
+function totalLen(pl){return pl.length?Math.max($('vid').duration||0,pl[pl.length-1].st+pl[pl.length-1].dur):0;}
+
+$('go').addEventListener('click',async()=>{
+  if(busy)return;
+  if(!$('vid').src){status('Pilih video dulu.',true);return;}
+  busy=true;$('go').disabled=true;stopAll();
+  try{
+    ac();
+    status('Membaca video…');prog(0.02);
+    const {frames,dur}=await getFrames();
+    status('Memahami video dan menulis suara…');
+    segs=await makeScript(frames,dur);prog(0.3);
+    renderSegs();
+    await makeAudio();
+    const pl=plan(),tl=totalLen(pl);
+    status('Siap. Suara '+segs.length+' segmen, '+tl.toFixed(1)+' saat.');prog(1);
+  }catch(e){status(e.message||String(e),true);}
+  busy=false;$('go').disabled=false;
+});
+
+$('redo').addEventListener('click',async()=>{
+  if(busy||!segs.length)return;
+  busy=true;$('redo').disabled=true;stopAll();
+  try{ac();await makeAudio();status('Siap. Suara dijana semula.');prog(1);}
+  catch(e){status(e.message||String(e),true);}
+  busy=false;$('redo').disabled=false;
+});
+
+function ac(){
+  if(!actx)actx=new (window.AudioContext||window.webkitAudioContext)();
+  if(actx.state==='suspended')actx.resume();
+  return actx;
+}
+function stopAll(){
+  srcs.forEach(s=>{try{s.stop()}catch(e){}});srcs=[];
+  timers.forEach(clearTimeout);timers=[];
+  try{$('vid').pause()}catch(e){}
+}
+$('stop').addEventListener('click',()=>{stopAll();status('Dihentikan.');});
+
+function startPlayback(record){
+  const ctx=ac(), v=$('vid'), pl=plan(), tl=totalLen(pl);
+  const dest=record?ctx.createMediaStreamDestination():null;
+  stopAll();
+  const lead=0.4, t0=ctx.currentTime+lead;
+  pl.forEach((p,i)=>{
+    const b=ctx.createBuffer(1,pcm[i].length,SR);b.copyToChannel(pcm[i],0);
+    const s=ctx.createBufferSource();s.buffer=b;s.playbackRate.value=p.rate;
+    s.connect(ctx.destination);if(dest)s.connect(dest);
+    s.start(t0+p.st);srcs.push(s);
+  });
+  v.muted=true;
+  const startVideo=()=>{v.currentTime=0;v.play().catch(()=>{});};
+  return {dest,tl,lead,startVideo,v};
+}
+
+$('play').addEventListener('click',()=>{
+  if(!pcm.length||pcm.length!==segs.length){status('Jana suara dulu.',true);return;}
+  const r=startPlayback(false);
+  timers.push(setTimeout(r.startVideo,r.lead*1000));
+  timers.push(setTimeout(()=>{status('Selesai main.');},(r.lead+r.tl+0.3)*1000));
+  status('Sedang main…');
+});
+
+function showLink(blob,name,label){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=name;a.className='dl';a.textContent=label+' ('+(blob.size/1048576).toFixed(1)+' MB)';
+  const box=$('dls');box.insertBefore(a,box.firstChild);
+  try{a.click();}catch(e){}
+}
+
+$('savev').addEventListener('click',()=>{
+  if(!pcm.length||pcm.length!==segs.length){status('Jana suara dulu.',true);return;}
+  const v=$('vid');
+  if(!v.captureStream||!window.MediaRecorder){status('Pelayar ini tak boleh rakam video. Guna Simpan suara (WAV) dan gabung dalam CapCut.',true);return;}
+  const r=startPlayback(true);
+  const stream=new MediaStream([...v.captureStream().getVideoTracks(),...r.dest.stream.getAudioTracks()]);
+  const mimes=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  const mime=mimes.find(m=>MediaRecorder.isTypeSupported(m))||'';
+  const rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:6000000}:{});
+  const chunks=[];
+  rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+  rec.onstop=()=>{
+    const type=(rec.mimeType||mime||'video/webm').split(';')[0];
+    const blob=new Blob(chunks,{type});
+    showLink(blob,'video-bersuara.'+(type.includes('mp4')?'mp4':'webm'),'Simpan video bersuara');
+    status('Video bersuara siap. Tekan butang hijau untuk simpan.');
+  };
+  rec.start(500);
+  timers.push(setTimeout(r.startVideo,r.lead*1000));
+  timers.push(setTimeout(()=>{if(rec.state!=='inactive')rec.stop();stopAll();},(r.lead+r.tl+0.6)*1000));
+  status('Merakam video bersuara… tunggu sampai habis ('+Math.round(r.tl)+' saat).');
+});
+
+function wavBlob(){
+  const pl=plan(), tl=totalLen(pl), n=Math.ceil((tl+0.2)*SR), mix=new Float32Array(n);
+  pl.forEach((p,i)=>{
+    const src=pcm[i], o=Math.floor(p.st*SR);
+    for(let j=0;;j++){
+      const q=j*p.rate, k=Math.floor(q); if(k+1>=src.length||o+j>=n)break;
+      const fr=q-k; mix[o+j]+=src[k]*(1-fr)+src[k+1]*fr;
+    }
+  });
+  const buf=new ArrayBuffer(44+n*2), dv=new DataView(buf);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i));};
+  w(0,'RIFF');dv.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,1,true);
+  dv.setUint32(24,SR,true);dv.setUint32(28,SR*2,true);dv.setUint16(32,2,true);dv.setUint16(34,16,true);w(36,'data');dv.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++){const s=Math.max(-1,Math.min(1,mix[i]));dv.setInt16(44+i*2,s<0?s*32768:s*32767,true);}
+  return new Blob([buf],{type:'audio/wav'});
+}
+$('savew').addEventListener('click',()=>{
+  if(!pcm.length||pcm.length!==segs.length){status('Jana suara dulu.',true);return;}
+  showLink(wavBlob(),'suara-video.wav','Simpan suara (WAV)');
+  status('Suara siap. Tekan butang hijau untuk simpan.');
+});
+</script>
+</body>
+</html>
