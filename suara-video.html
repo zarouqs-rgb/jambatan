@@ -182,7 +182,7 @@ async function makeScript(frames,dur){
   const parts=[{text:intro}];
   frames.forEach(f=>{parts.push({text:'Bingkai pada '+f.t.toFixed(1)+' saat:'});parts.push({inlineData:{mimeType:'image/jpeg',data:f.b64}});});
   const j=await gem('text',{contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json',responseSchema:{type:'ARRAY',items:{type:'OBJECT',properties:{start:{type:'NUMBER'},end:{type:'NUMBER'},text:{type:'STRING'}},required:['start','end','text']}}}});
-  const raw=(j.candidates&&j.candidates[0]&&j.candidates[0].content.parts.map(p=>p.text||'').join(''))||'';
+  const c0=(j.candidates||[])[0];const raw=((c0&&c0.content&&c0.content.parts)||[]).map(p=>p.text||'').join('');
   let a;try{a=JSON.parse(raw)}catch(e){throw new Error('Skrip tak dapat dibaca. Cuba tekan Jana suara sekali lagi.')}
   a=a.filter(s=>s&&typeof s.text==='string'&&s.text.trim()).map(s=>({start:Math.max(0,+s.start||0),end:Math.min(dur,Math.max(+s.end||0,(+s.start||0)+1)),text:s.text.trim()}));
   if(!a.length) throw new Error('Tiada skrip dijana. Cuba lagi.');
@@ -223,7 +223,7 @@ async function ttsAll(texts){
   const k=voice+'|'+tone+'|'+joined;
   if(cache.has(k)) return cache.get(k);
   let p=null,why='';
-  for(let t=0;t<5&&!p;t++){
+  for(let t=0;t<3&&!p;t++){
     const j=await gem('tts',mdl=>({contents:[{parts:[{text:joined}]}],generationConfig:{temperature:0.3,responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}}}));
     const c=(j.candidates||[])[0], parts=(c&&c.content&&c.content.parts)||[];
     p=parts.find(x=>x.inlineData);
