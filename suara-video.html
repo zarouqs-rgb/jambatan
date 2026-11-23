@@ -98,11 +98,29 @@ $('file').addEventListener('change',e=>{
   status('Video dimuat: '+f.name);
 });
 
-async function gem(model,body){
-  for(let i=0;i<4;i++){
-    const r=await fetch(API+model+':generateContent?key='+encodeURIComponent($('gkey').value.trim()),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+const M={text:'',tts:'',redo:0};
+async function discover(){
+  try{
+    const r=await fetch(API.slice(0,-1)+'?pageSize=200&key='+encodeURIComponent($('gkey').value.trim()));
+    if(r.ok){
+      const j=await r.json();
+      const ms=(j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace('models/',''));
+      const ver=n=>{const m=n.match(/gemini-(\d+(?:\.\d+)?)/);return m?parseFloat(m[1]):0;};
+      const best=a=>a.sort((x,y)=>ver(y)-ver(x))[0]||'';
+      M.text=best(ms.filter(n=>/^gemini-\d+(\.\d+)?-flash$/.test(n)));
+      M.tts=best(ms.filter(n=>/flash/.test(n)&&/tts/.test(n)))||best(ms.filter(n=>/tts/.test(n)));
+    }
+  }catch(e){}
+  if(!M.text)M.text='gemini-3.8-flash';
+  if(!M.tts)M.tts='gemini-2.5-flash-preview-tts';
+}
+async function gem(kind,body){
+  if(!M[kind])await discover();
+  for(let i=0;i<5;i++){
+    const r=await fetch(API+M[kind]+':generateContent?key='+encodeURIComponent($('gkey').value.trim()),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(r.ok) return r.json();
-    if((r.status===429||r.status>=500)&&i<3){
+    if(r.status===404&&!M.redo){M.redo=1;M.text='';M.tts='';await discover();continue;}
+    if((r.status===429||r.status>=500)&&i<4){
       const w=r.status===429?25:4;
       for(let s=w;s>0;s--){status('Had penggunaan penuh, cuba semula dalam '+s+' saat…');await sleep(1000);}
       continue;
@@ -151,7 +169,7 @@ async function makeScript(frames,dur){
   'Jangan reka apa-apa yang tak kelihatan. Jangan sebut perkataan "bingkai", "video" atau "skrin". Ayat pendek, senang dibaca kuat. Jawab JSON sahaja.';
   const parts=[{text:intro}];
   frames.forEach(f=>{parts.push({text:'Bingkai pada '+f.t.toFixed(1)+' saat:'});parts.push({inlineData:{mimeType:'image/jpeg',data:f.b64}});});
-  const j=await gem('gemini-2.5-flash',{contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json',thinkingConfig:{thinkingBudget:0},responseSchema:{type:'ARRAY',items:{type:'OBJECT',properties:{start:{type:'NUMBER'},end:{type:'NUMBER'},text:{type:'STRING'}},required:['start','end','text']}}}});
+  const j=await gem('text',{contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json',responseSchema:{type:'ARRAY',items:{type:'OBJECT',properties:{start:{type:'NUMBER'},end:{type:'NUMBER'},text:{type:'STRING'}},required:['start','end','text']}}}});
   const raw=(j.candidates&&j.candidates[0]&&j.candidates[0].content.parts.map(p=>p.text||'').join(''))||'';
   let a;try{a=JSON.parse(raw)}catch(e){throw new Error('Skrip tak dapat dibaca. Cuba tekan Jana suara sekali lagi.')}
   a=a.filter(s=>s&&typeof s.text==='string'&&s.text.trim()).map(s=>({start:Math.max(0,+s.start||0),end:Math.min(dur,Math.max(+s.end||0,(+s.start||0)+1)),text:s.text.trim()}));
@@ -163,7 +181,7 @@ async function makeScript(frames,dur){
 async function tts(text){
   const voice=$('voice').value, tone=$('tone').value, k=voice+'|'+tone+'|'+text;
   if(cache.has(k)) return cache.get(k);
-  const j=await gem('gemini-2.5-flash-preview-tts',{contents:[{parts:[{text:'Bacakan dalam Bahasa Melayu Malaysia, nada '+tone+', jelas dan semula jadi: '+text}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}}});
+  const j=await gem('tts',{contents:[{parts:[{text:'Bacakan dalam Bahasa Melayu Malaysia, nada '+tone+', jelas dan semula jadi: '+text}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}}});
   const p=j.candidates&&j.candidates[0]&&j.candidates[0].content.parts.find(x=>x.inlineData);
   if(!p) throw new Error('Suara tak dijana untuk: '+text.slice(0,30));
   const bin=atob(p.inlineData.data), n=bin.length>>1, f=new Float32Array(n);
