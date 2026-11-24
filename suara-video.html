@@ -274,12 +274,32 @@ function badSeg(d,text){return !d||d.length<SR*expSec(text)*0.45||loud(d)<0.008;
 
 function renderSegs(){
   const box=$('segs');box.innerHTML='';
+  // Satu kotak untuk semua teks (senang salin)
+  const all=document.createElement('textarea');
+  all.id='allt';all.style.minHeight='170px';all.value=segs.map(s=>s.text).join('\n\n');
+  const lab=document.createElement('label');lab.textContent='Semua teks suara (pisah segmen dengan baris kosong)';
+  const cp=document.createElement('button');cp.className='g';cp.style.cssText='width:100%;margin:8px 0';cp.textContent='Salin semua teks';
+  cp.onclick=async()=>{
+    all.select();
+    try{await navigator.clipboard.writeText(all.value);}catch(e){try{document.execCommand('copy');}catch(e2){}}
+    status('Teks disalin.');
+  };
+  box.appendChild(lab);box.appendChild(all);box.appendChild(cp);
+  // Segmen berasingan (dengan masa), dalam bahagian boleh buka
+  const det=document.createElement('details');det.style.marginBottom='8px';
+  const sum=document.createElement('summary');sum.textContent='Segmen mengikut masa';det.appendChild(sum);
+  const tas=[];
   segs.forEach((s,i)=>{
-    const d=document.createElement('div');d.className='seg';
+    const d=document.createElement('div');d.className='seg';d.style.marginTop='8px';
     const sm=document.createElement('small');sm.textContent=s.start.toFixed(1)+'s – '+s.end.toFixed(1)+'s';
-    const ta=document.createElement('textarea');ta.value=s.text;
-    ta.addEventListener('input',()=>{segs[i].text=ta.value;});
-    d.appendChild(sm);d.appendChild(ta);box.appendChild(d);
+    const ta=document.createElement('textarea');ta.value=s.text;tas.push(ta);
+    ta.addEventListener('input',()=>{segs[i].text=ta.value;all.value=segs.map(x=>x.text).join('\n\n');});
+    d.appendChild(sm);d.appendChild(ta);det.appendChild(d);
+  });
+  box.appendChild(det);
+  all.addEventListener('input',()=>{
+    const parts=all.value.split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);
+    if(parts.length===segs.length){parts.forEach((t,i)=>{segs[i].text=t;tas[i].value=t;});}
   });
   $('out').style.display='block';
 }
