@@ -163,11 +163,11 @@ async function gem(kind,bodyOrFn){
     if([400,401,403,404].includes(r.status)&&!$('gkey').value.trim()&&M.L[kind]&&M.ix[kind]+1<M.L[kind].length){
       M.ix[kind]++;M[kind]=M.L[kind][M.ix[kind]];continue;
     }
-    if((r.status===403||r.status===400||r.status===401)&&!$('gkey').value.trim()){
+    if((r.status===403||r.status===400||r.status===401)&&!$('gkey').value.trim()&&/api.?key|unregistered|credential|permission|not valid|forbidden/i.test(m)){
       $('kd').open=true;$('gkey').focus();
       throw new Error('Tiada kunci API. Ambil kunci percuma di aistudio.google.com/apikey, tampal dalam kotak Kunci API di bawah, kemudian tekan Jana suara semula.');
     }
-    throw new Error('Gemini '+r.status+(m?': '+m:''));
+    throw new Error('Gemini '+r.status+' ('+M[kind]+')'+(m?': '+m.slice(0,300):''));
   }
 }
 
@@ -242,6 +242,7 @@ function splitBySilence(d,rate,texts){
   return texts.map((_,i)=>{ const a=Math.max(0,Math.floor(b[i]*rate)), e=Math.min(d.length,Math.ceil(b[i+1]*rate)); return trimSil(d.subarray(a,e),rate); });
 }
 
+const STYLE='Say in a clear, friendly narrator tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)';
 const clean=t=>t.replace(/\s+/g,' ').replace(/([^.!?…])$/,'$1.');
 async function ttsText(joined){
   const voice=$('voice').value, tone=$('tone').value;
@@ -249,7 +250,7 @@ async function ttsText(joined){
   if(cache.has(k)) return cache.get(k);
   let p=null,why='';
   for(let t=0;t<3&&!p;t++){
-    const j=await gem('tts',mdl=>({contents:[{parts:[{text:joined}]}],generationConfig:{temperature:0.3,responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}}}));
+    const j=await gem('tts',mdl=>({contents:[{parts:[{text:STYLE+': '+joined}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}}}}));
     const c=(j.candidates||[])[0], parts=(c&&c.content&&c.content.parts)||[];
     p=parts.find(x=>x.inlineData);
     if(!p){
