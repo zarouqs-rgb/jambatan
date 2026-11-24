@@ -163,9 +163,9 @@ async function gem(kind,bodyOrFn){
     if([400,401,403,404].includes(r.status)&&!$('gkey').value.trim()&&M.L[kind]&&M.ix[kind]+1<M.L[kind].length){
       M.ix[kind]++;M[kind]=M.L[kind][M.ix[kind]];continue;
     }
-    if((r.status===403||r.status===400||r.status===401)&&!$('gkey').value.trim()&&/api.?key|unregistered|credential|permission|not valid|forbidden/i.test(m)){
-      $('kd').open=true;$('gkey').focus();
-      throw new Error('Tiada kunci API. Ambil kunci percuma di aistudio.google.com/apikey, tampal dalam kotak Kunci API di bawah, kemudian tekan Jana suara semula.');
+    if((r.status===403||r.status===401)&&!$('gkey').value.trim()){
+      $('kd').open=true;
+      throw new Error('Gemini '+r.status+' ('+M[kind]+'): '+(m?m.slice(0,300):'akses ditolak')+' — Kalau dibuka dari pautan kongsi Gemini, kunci Canvas mungkin tak berfungsi. Buka dalam Canvas asal, atau tampal kunci dalam kotak Kunci API.');
     }
     throw new Error('Gemini '+r.status+' ('+M[kind]+')'+(m?': '+m.slice(0,300):''));
   }
