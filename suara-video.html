@@ -242,9 +242,9 @@ function splitBySilence(d,rate,texts){
   return texts.map((_,i)=>{ const a=Math.max(0,Math.floor(b[i]*rate)), e=Math.min(d.length,Math.ceil(b[i+1]*rate)); return trimSil(d.subarray(a,e),rate); });
 }
 
-async function ttsAll(texts){
+const clean=t=>t.replace(/\s+/g,' ').replace(/([^.!?…])$/,'$1.');
+async function ttsText(joined){
   const voice=$('voice').value, tone=$('tone').value;
-  const joined=texts.map(t=>t.replace(/\s+/g,' ').replace(/([^.!?…])$/,'$1.')).join('\n\n');
   const k=voice+'|'+tone+'|'+joined;
   if(cache.has(k)) return cache.get(k);
   let p=null,why='';
@@ -264,6 +264,12 @@ async function ttsAll(texts){
   for(let i=0;i<n;i++){let s=bin.charCodeAt(2*i)|(bin.charCodeAt(2*i+1)<<8);if(s>=32768)s-=65536;f[i]=s/32768;}
   cache.set(k,f);return f;
 }
+// Anggaran masa ucapan (saat) bagi teks Melayu: ~14 huruf sesaat
+const expSec=t=>Math.max(0.6,t.length/14);
+// Kuasa bunyi (RMS) purata audio — untuk kesan senyap
+function loud(d){let s=0;for(let i=0;i<d.length;i++)s+=d[i]*d[i];return Math.sqrt(s/Math.max(1,d.length));}
+// Semak satu segmen: terlalu pendek atau senyap = rosak
+function badSeg(d,text){return !d||d.length<SR*expSec(text)*0.45||loud(d)<0.008;}
 
 function renderSegs(){
   const box=$('segs');box.innerHTML='';
@@ -279,9 +285,28 @@ function renderSegs(){
 
 async function makeAudio(){
   status('Menjana suara (sekali jalan supaya nada sekata)…');prog(0.4);
-  const full=await ttsAll(segs.map(s=>s.text));
-  prog(0.9);
-  pcm=segs.length>1?splitBySilence(full,SR,segs.map(s=>s.text)):[trimSil(full,SR)];
+  const texts=segs.map(s=>clean(s.text));
+  const full=await ttsText(texts.join('\n\n'));
+  prog(0.7);
+  const expTotal=texts.reduce((a,t)=>a+expSec(t),0);
+  const truncated=full.length/SR<expTotal*0.6;
+  pcm=segs.length>1&&!truncated?splitBySilence(full,SR,texts):(segs.length>1?[]:[trimSil(full,SR)]);
+  // Segmen yang hilang/senyap/terpotong dijana semula satu per satu
+  const need=[];
+  for(let i=0;i<segs.length;i++) if(truncated||badSeg(pcm[i],texts[i])) need.push(i);
+  for(let q=0;q<need.length;q++){
+    const i=need[q];
+    status('Suara terpotong. Membaiki segmen '+(i+1)+' ('+(q+1)+'/'+need.length+')…');
+    await sleep(q?900:0);
+    let d=trimSil(await ttsText(texts[i]),SR);
+    if(badSeg(d,texts[i])){
+      cache.delete($('voice').value+'|'+$('tone').value+'|'+texts[i]);
+      await sleep(1200);
+      d=trimSil(await ttsText(texts[i]),SR);
+    }
+    pcm[i]=d;
+    prog(0.7+0.3*(q+1)/need.length);
+  }
   prog(1);
 }
 
