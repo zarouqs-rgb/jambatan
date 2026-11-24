@@ -361,17 +361,31 @@ function stopAll(){
 }
 $('stop').addEventListener('click',()=>{stopAll();status('Dihentikan.');});
 
+// Campur semua segmen jadi SATU trek (dengan fade halus di hujung segmen supaya tak "klik"/putus)
+function mixTrack(rate){
+  const pl=plan(), tl=totalLen(pl), n=Math.ceil((tl+0.3)*rate), mix=new Float32Array(n), k=rate/SR;
+  const fade=Math.floor(rate*0.012);
+  pl.forEach((p,i)=>{
+    const src=pcm[i], o=Math.floor(p.st*rate), m=Math.floor((src.length/p.rate)*k);
+    for(let j=0;j<m&&o+j<n;j++){
+      const q=j*p.rate/k, a=Math.floor(q); if(a+1>=src.length)break;
+      const fr=q-a; let v=src[a]*(1-fr)+src[a+1]*fr;
+      if(j<fade)v*=j/fade; else if(m-j<fade)v*=(m-j)/fade;
+      mix[o+j]+=v;
+    }
+  });
+  return {mix,tl};
+}
 function startPlayback(record){
-  const ctx=ac(), v=$('vid'), pl=plan(), tl=totalLen(pl);
+  const ctx=ac(), v=$('vid');
+  const {mix,tl}=mixTrack(ctx.sampleRate);
   const dest=record?ctx.createMediaStreamDestination():null;
   stopAll();
   const lead=0.4, t0=ctx.currentTime+lead;
-  pl.forEach((p,i)=>{
-    const b=ctx.createBuffer(1,pcm[i].length,SR);b.copyToChannel(pcm[i],0);
-    const s=ctx.createBufferSource();s.buffer=b;s.playbackRate.value=p.rate;
-    s.connect(ctx.destination);if(dest)s.connect(dest);
-    s.start(t0+p.st);srcs.push(s);
-  });
+  const b=ctx.createBuffer(1,mix.length,ctx.sampleRate);b.copyToChannel(mix,0);
+  const s=ctx.createBufferSource();s.buffer=b;
+  s.connect(ctx.destination);if(dest)s.connect(dest);
+  s.start(t0);srcs.push(s);
   v.muted=true;
   const startVideo=()=>{v.currentTime=0;v.play().catch(()=>{});};
   return {dest,tl,lead,startVideo,v};
@@ -430,14 +444,7 @@ $('savev').addEventListener('click',()=>{
 });
 
 function wavBlob(){
-  const pl=plan(), tl=totalLen(pl), n=Math.ceil((tl+0.2)*SR), mix=new Float32Array(n);
-  pl.forEach((p,i)=>{
-    const src=pcm[i], o=Math.floor(p.st*SR);
-    for(let j=0;;j++){
-      const q=j*p.rate, k=Math.floor(q); if(k+1>=src.length||o+j>=n)break;
-      const fr=q-k; mix[o+j]+=src[k]*(1-fr)+src[k+1]*fr;
-    }
-  });
+  const {mix}=mixTrack(SR), n=mix.length;
   const buf=new ArrayBuffer(44+n*2), dv=new DataView(buf);
   const w=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i));};
   w(0,'RIFF');dv.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,1,true);
