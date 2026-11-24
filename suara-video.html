@@ -85,7 +85,7 @@ const $=id=>document.getElementById(id);
 const SR=24000, API='https://generativelanguage.googleapis.com/v1beta/models/';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let segs=[], pcm=[], cache=new Map(), actx=null, srcs=[], timers=[], busy=false;
-try{$('gkey').value=localStorage.getItem('sv_key')||''}catch(e){}
+try{$('gkey').value=localStorage.getItem('sv_key')||localStorage.getItem('sv_gkey')||''}catch(e){}
 $('gkey').addEventListener('input',()=>{try{localStorage.setItem('sv_key',$('gkey').value.trim())}catch(e){}});
 
 function status(m,err){const s=$('st');s.textContent=m;s.className=err?'err':'';}
