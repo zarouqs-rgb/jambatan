@@ -38,8 +38,9 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
 </div>
 
 <details class="w" id="tsw" style="display:none" open>
-  <summary>Stempel masa (boleh disalin)</summary>
-  <textarea id="ts" readonly style="min-height:150px"></textarea>
+  <summary>Stempel masa (boleh diubah &amp; disalin)</summary>
+  <textarea id="ts" inputmode="text" style="min-height:150px"></textarea>
+  <button id="tsclear" style="width:100%;margin-top:8px">🗑️ Padam Teks</button>
   <button id="cpts" class="p" style="margin-top:8px">Salin Stempel Masa</button>
 </details>
 
@@ -52,7 +53,8 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
 <details class="w" id="vow">
   <summary>Suara sahaja (teks + stempel masa)</summary>
   <label>Tampal teks. Setiap baris mula dengan masa, contoh 00:00 atau 00:05.5 atau 00:00 - 00:04</label>
-  <textarea id="vtext" style="min-height:160px" placeholder="00:00 Hujan turun lebat...&#10;00:04 Ramai yang lalu...&#10;00:08.5 Seorang budak muda..."></textarea>
+  <textarea id="vtext" style="min-height:160px" inputmode="text" placeholder="Taip atau tampal di sini"></textarea>
+  <button id="vclear" style="width:100%;margin-top:8px">🗑️ Padam Teks</button>
   <div class="row" style="margin-top:8px"><button id="vpaste">📋 Tampal</button><button id="vgit">Muat suara.txt (GitHub)</button></div>
   <label>Atau buka fail teks dari phone (.txt / .srt)</label>
   <input id="vfile" type="file" accept=".txt,.srt,.vtt,text/plain">
@@ -194,7 +196,7 @@ function sceneTime(el){
 }
 $('cpts').onclick=async()=>{
   const ta=$('ts'),txt=ta.value;
-  try{await navigator.clipboard.writeText(txt)}catch(e){ta.removeAttribute('readonly');ta.select();ta.setSelectionRange(0,99999);try{document.execCommand('copy')}catch(_){}ta.setAttribute('readonly','')}
+  try{await navigator.clipboard.writeText(txt)}catch(e){ta.select();ta.setSelectionRange(0,99999);try{document.execCommand('copy')}catch(_){}}
   $('cpts').textContent='Disalin ✓';setTimeout(()=>$('cpts').textContent='Salin Stempel Masa',1500);
 };
 
@@ -374,6 +376,8 @@ $('vpaste').onclick=async()=>{
     const ta=$('vtext'); ta.focus(); ta.select(); ta.scrollIntoView({block:'center'});
     st('Butang ini disekat di sini. Tekan lama dalam kotak teks, pilih Tampal (atau tekan teks pada papan klip keyboard).',1); }
 };
+$('vclear').onclick=()=>{ $('vtext').value=''; S.s('sv_vtext',''); $('vtext').focus(); st('Teks dipadam'); };
+$('tsclear').onclick=()=>{ $('ts').value=''; $('ts').focus(); st('Teks stempel masa dipadam'); };
 $('vfile').onchange=async e=>{
   const f=e.target.files[0]; if(!f) return;
   try{ const t=(await f.text()).replace(/^\uFEFF/,'').replace(/^WEBVTT.*\r?\n/,'').trim(); if(!t) throw 0;
