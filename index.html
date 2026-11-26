@@ -38,9 +38,8 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
 </div>
 
 <details class="w" id="tsw" style="display:none" open>
-  <summary>Stempel masa (boleh diubah &amp; disalin)</summary>
-  <textarea id="ts" inputmode="text" style="min-height:150px"></textarea>
-  <button id="tsclear" style="width:100%;margin-top:8px">🗑️ Padam Teks</button>
+  <summary>Stempel masa (boleh disalin)</summary>
+  <textarea id="ts" readonly style="min-height:150px"></textarea>
   <button id="cpts" class="p" style="margin-top:8px">Salin Stempel Masa</button>
 </details>
 
@@ -48,19 +47,13 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
   <summary>Skrip suara</summary>
   <label>Teks yang akan dibaca</label>
   <textarea id="script"></textarea>
-  <button id="aonly" class="p" style="width:100%;margin-top:8px">🎙️ Jana Audio Sahaja</button>
-  <audio id="aplay" controls style="display:none;width:100%;margin-top:8px"></audio>
-  <a id="adl" class="dl" style="margin-top:8px"></a>
 </details>
 
 <details class="w" id="vow">
   <summary>Suara sahaja (teks + stempel masa)</summary>
   <label>Tampal teks. Setiap baris mula dengan masa, contoh 00:00 atau 00:05.5 atau 00:00 - 00:04</label>
-  <textarea id="vtext" style="min-height:160px" inputmode="text" placeholder="Taip atau tampal di sini"></textarea>
-  <button id="vclear" style="width:100%;margin-top:8px">🗑️ Padam Teks</button>
+  <textarea id="vtext" style="min-height:160px" placeholder="00:00 Hujan turun lebat...&#10;00:04 Ramai yang lalu...&#10;00:08.5 Seorang budak muda..."></textarea>
   <div class="row" style="margin-top:8px"><button id="vpaste">📋 Tampal</button><button id="vgit">Muat suara.txt (GitHub)</button></div>
-  <label>Atau buka fail teks dari phone (.txt / .srt)</label>
-  <input id="vfile" type="file" accept=".txt,.srt,.vtt,text/plain">
   <label>Jika suara lebih panjang daripada ruang masa</label>
   <select id="vfit"><option value="fast">Percepatkan sedikit tanpa ubah nada (maks 1.3x), lebih dari itu anjak</option><option value="push">Anjak baris seterusnya</option><option value="over">Biar bertindih</option></select>
   <div class="row" style="margin-top:8px"><button id="vgen" class="p">Jana Suara Ikut Masa</button><button id="vplay">Dengar</button></div>
@@ -72,15 +65,15 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
   <label>Kunci API Gemini (kosongkan jika dalam Canvas)</label>
   <input id="gkey" type="password" autocomplete="off">
   <div class="row">
-    <div style="flex:1"><label>Model suara</label><select id="tmodel"><option value="gemini-2.5-flash-preview-tts">2.5 Flash (asal)</option><option value="gemini-3.1-flash-tts-preview">3.1 Flash (baru)</option><option value="gemini-2.5-pro-preview-tts">2.5 Pro (kualiti)</option></select></div>
+    <div style="flex:1"><label>Model suara</label><input id="tmodel"></div>
     <div style="flex:1"><label>Nama suara</label><select id="vname"><option>Kore</option><option>Zephyr</option><option>Puck</option><option>Charon</option><option>Fenrir</option><option>Leda</option><option>Orus</option><option>Aoede</option><option>Callirrhoe</option><option>Autonoe</option><option>Enceladus</option><option>Iapetus</option><option>Umbriel</option><option>Algieba</option><option>Despina</option><option>Erinome</option><option>Algenib</option><option>Rasalgethi</option><option>Laomedeia</option><option>Achernar</option><option>Alnilam</option><option>Schedar</option><option>Gacrux</option><option>Pulcherrima</option><option>Achird</option><option>Zubenelgenubi</option><option>Vindemiatrix</option><option>Sadachbia</option><option>Sadaltager</option><option>Sulafat</option></select></div>
   </div>
   <label>Gaya suara (arahan loghat dan nada)</label>
-  <select id="style"><optgroup label="Umum"><option value="Say in a clear, friendly narrator tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Narator mesra (asal)</option><option value="Say in a relaxed casual conversational tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Santai berbual</option><option value="Say in a calm, soft, soothing tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Tenang dan lembut</option><option value="Say in a cheerful, energetic tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Ceria bertenaga</option><option value="Say in a serious, firm tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Serius dan tegas</option><option value="Say in a sad, wistful tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Sedih dan sayu</option><option value="Say in a deeply moved, emotional tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Terharu penuh emosi</option><option value="Say in a rousing, passionate tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Semangat membakar</option><option value="Say in a quiet whisper with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Berbisik</option><option value="Say in a mysterious, suspenseful tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Misteri dan suspens</option><option value="Say in an eerie, horror storytelling voice with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Seram</option><option value="Say in a playful, comedic tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Lucu dan jenaka</option><option value="Say in an angry but clear tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Marah</option><option value="Say in a surprised, excited tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Terkejut dan teruja</option><option value="Say in a warm, romantic tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Romantis</option></optgroup><optgroup label="Sastera"><option value="Say as an expressive poetry recitation, with unhurried pacing and meaningful pauses with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Puisi</option><option value="Say as a dramatic modern poetry declamation, with strong dynamics and pauses with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Sajak</option><option value="Say as a traditional pantun recital, rhythmic, pausing after each line with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Pantun</option><option value="Say as a traditional syair recital, slow, flowing and melodious with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Syair</option><option value="Say as a gurindam recital, measured and wise, pausing between couplets with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Gurindam</option><option value="Say as a witty seloka recital with a teasing rhythm with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Seloka</option><option value="Say as a powerful stage declamation with a projected voice with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Deklamasi pentas</option><option value="Say as a traditional Malay storyteller, vivid and captivating with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Penglipur lara</option><option value="Say as a gentle, animated storyteller for young children with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Cerita kanak-kanak</option><option value="Say as a slow, soft bedtime story with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Dongeng sebelum tidur</option><option value="Say as an audiobook narrator, natural and immersive with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Novel audio</option><option value="Say as a formal public speech, confident and well paced with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Pidato</option><option value="Say as a persuasive oratory competition speech with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Syarahan</option></optgroup><optgroup label="Media"><option value="Say as a formal television news anchor with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Pembaca berita</option><option value="Say as a field reporter, urgent and informative with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Wartawan lapangan</option><option value="Say as a documentary narrator, deep, measured and thoughtful with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Dokumentari</option><option value="Say as a nature documentary narrator, quiet and full of wonder with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Dokumentari alam</option><option value="Say as a history documentary narrator, solemn and authoritative with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Sejarah</option><option value="Say as an upbeat radio DJ with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">DJ radio</option><option value="Say as a podcast host, natural and engaging with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Hos podcast</option><option value="Say as a fast, excited sports commentator with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Pengulas sukan</option><option value="Say as a polite formal event emcee with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Pengacara majlis</option><option value="Say as a lively entertainment show host with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Hos rancangan hiburan</option><option value="Say as a dramatic movie trailer voice with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Trailer filem</option><option value="Say as a clear public announcement with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Pengumuman awam</option></optgroup><optgroup label="Video dan jualan"><option value="Say as a fast, punchy short-video hook with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Hook TikTok</option><option value="Say as an honest, friendly product review with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Review produk</option><option value="Say as an enthusiastic advertisement voice with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Iklan jualan</option><option value="Say as an energetic live-stream seller with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Jualan live</option><option value="Say as an elegant, understated premium brand advertisement with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Iklan premium</option></optgroup><optgroup label="Ilmu"><option value="Say as a patient teacher explaining step by step with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Cikgu mengajar</option><option value="Say as a clear technical tutorial instructor, precise and unhurried with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Tutorial teknikal</option><option value="Say as a firm, clear safety briefing with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Taklimat keselamatan</option><option value="Say as an inspiring motivational speaker with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Motivasi</option><option value="Say as a calm, respectful religious reminder with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Nasihat agama</option><option value="Say as a very slow, relaxing meditation guide with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Meditasi</option></optgroup></select>
+  <input id="style">
   <label>Repo GitHub (jika dibuka di luar halaman repo)</label>
-  <select id="repo"><option value="zarouqs-rgb/jambatan">zarouqs-rgb/jambatan</option></select>
+  <input id="repo">
   <label>Cabang</label>
-  <select id="branch"><option value="main">main (asal)</option></select>
+  <input id="branch">
 </details>
 
 <video id="pv" class="w" controls playsinline style="display:none"></video>
@@ -102,7 +95,7 @@ const cv = $('cv'), ctx = cv.getContext('2d');
 const S = {g(k){try{return localStorage.getItem(k)||''}catch(e){return ''}},s(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const D = {tmodel:'gemini-2.5-flash-preview-tts', vname:'Kore', style:'Say in a clear, friendly narrator tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)', repo:'zarouqs-rgb/jambatan', branch:'main'};
 ['gkey','tmodel','vname','style','repo','branch'].forEach(k=>{
-  const el=$(k); el.value=S.g('sv_'+k)||D[k]||''; if(el.tagName==='SELECT'&&el.selectedIndex<0) el.value=D[k];
+  const el=$(k); el.value=S.g('sv_'+k)||D[k]||'';
   el.addEventListener('input',()=>S.s('sv_'+k,el.value.trim()));
 });
 const st=(m,e)=>{$('st').textContent=m;$('st').className='w'+(e?' err':'');$('st').id='st'};
@@ -199,7 +192,7 @@ function sceneTime(el){
 }
 $('cpts').onclick=async()=>{
   const ta=$('ts'),txt=ta.value;
-  try{await navigator.clipboard.writeText(txt)}catch(e){ta.select();ta.setSelectionRange(0,99999);try{document.execCommand('copy')}catch(_){}}
+  try{await navigator.clipboard.writeText(txt)}catch(e){ta.removeAttribute('readonly');ta.select();ta.setSelectionRange(0,99999);try{document.execCommand('copy')}catch(_){}ta.setAttribute('readonly','')}
   $('cpts').textContent='Disalin ✓';setTimeout(()=>$('cpts').textContent='Salin Stempel Masa',1500);
 };
 
@@ -375,34 +368,11 @@ function playStamped(){
 $('vpaste').onclick=async()=>{
   try{ const t=await navigator.clipboard.readText(); if(!t.trim()) throw 0;
     $('vtext').value=t; S.s('sv_vtext',t); st('Teks ditampal: '+t.split(/\n/).filter(x=>x.trim()).length+' baris.'); }
-  catch(e){ // Canvas sekat baca clipboard: guna tampal manual
-    const ta=$('vtext'); ta.focus(); ta.select(); ta.scrollIntoView({block:'center'});
-    st('Butang ini disekat di sini. Tekan lama dalam kotak teks, pilih Tampal (atau tekan teks pada papan klip keyboard).',1); }
-};
-$('vclear').onclick=()=>{ $('vtext').value=''; S.s('sv_vtext',''); $('vtext').focus(); st('Teks dipadam'); };
-$('tsclear').onclick=()=>{ $('ts').value=''; $('ts').focus(); st('Teks stempel masa dipadam'); };
-$('vfile').onchange=async e=>{
-  const f=e.target.files[0]; if(!f) return;
-  try{ const t=(await f.text()).replace(/^\uFEFF/,'').replace(/^WEBVTT.*\r?\n/,'').trim(); if(!t) throw 0;
-    $('vtext').value=t; S.s('sv_vtext',t); st('Fail dimuat: '+f.name); }
-  catch(_){ st('Fail kosong atau tak boleh dibaca',1); }
-  e.target.value='';
+  catch(e){ $('vtext').focus(); st('Pelayar tak benarkan tampal terus di sini. Hantar teks kepada Claude untuk disimpan sebagai suara.txt, kemudian tekan Muat suara.txt.',1); }
 };
 $('vgit').onclick=async()=>{
   try{ st('Memuat suara.txt...'); const t=await getText('suara.txt'); $('vtext').value=t.trim(); S.s('sv_vtext',t.trim()); st('suara.txt dimuat: '+t.split(/\n/).filter(x=>x.trim()).length+' baris.'); }
   catch(e){ st('Tiada suara.txt dalam GitHub lagi',1); }
-};
-$('aonly').onclick=async()=>{
-  const text=$('script').value.trim(); if(!text) return st('Isi skrip suara dahulu',1);
-  const b=$('aonly'), dl=$('adl'), au=$('aplay'); b.disabled=true; dl.style.display=au.style.display='none';
-  try{ st('Menjana audio...'); const r=await tts(text);
-    const buf=ensureAC().createBuffer(1,r.d.length,r.rate); buf.getChannelData(0).set(r.d);
-    if(dl.href) URL.revokeObjectURL(dl.href);
-    const url=URL.createObjectURL(toWav(buf)); au.src=url; au.style.display='block';
-    dl.href=url; dl.download='audio-'+Date.now()+'.wav'; dl.textContent='Muat Turun Audio (WAV, '+buf.duration.toFixed(1)+' saat)'; dl.style.display='block';
-    st('Audio siap');
-  }catch(e){st(e.message,1)}
-  finally{b.disabled=false}
 };
 $('vgen').onclick=makeStamped; $('vplay').onclick=playStamped;
 try{ $('vtext').value=S.g('sv_vtext'); $('vtext').addEventListener('input',()=>S.s('sv_vtext',$('vtext').value)); }catch(e){}

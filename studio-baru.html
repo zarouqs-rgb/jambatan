@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Studio Video</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0f1419;color:#e6e9ee;font-family:system-ui,sans-serif;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.w{width:min(100%,440px)}
+canvas{width:100%;height:auto;border-radius:12px;background:#000;display:block}
+.row{display:flex;gap:8px}
+button{flex:1;padding:14px 8px;border:0;border-radius:10px;font-size:15px;font-weight:600;background:#2a3440;color:#e6e9ee}
+button.p{background:#3b82f6;color:#fff}
+button:disabled{opacity:.5}
+#st{font-size:13px;color:#9fb0c2;min-height:18px;text-align:center}
+#st.err{color:#ff8a8a}
+details{background:#1a2129;border:1px solid #2a3440;border-radius:12px;padding:10px}
+summary{cursor:pointer;font-weight:600}
+label{display:block;font-size:12px;color:#9fb0c2;margin:8px 0 3px}
+input,select,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #2f3b48;background:#10161c;color:#e6e9ee;font-size:15px;font-family:inherit}
+textarea{min-height:110px;resize:vertical}
+video{width:100%;border-radius:12px;background:#000}
+a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#16a34a;color:#fff;font-weight:600;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="w"><canvas id="cv"></canvas></div>
+<div class="w" id="st"></div>
+
+<div class="w row">
+  <button id="load">Muat Adegan &amp; Skrip</button>
+  <button id="voice" class="p">Jana Suara</button>
+</div>
+<div class="w row">
+  <button id="play">Main</button>
+  <button id="rec" class="p">Rakam &amp; Simpan</button>
+</div>
+
+<details class="w" id="tsw" style="display:none" open>
+  <summary>Stempel masa (boleh diubah &amp; disalin)</summary>
+  <textarea id="ts" inputmode="text" style="min-height:150px"></textarea>
+  <button id="tsclear" style="width:100%;margin-top:8px">🗑️ Padam Teks</button>
+  <button id="cpts" class="p" style="margin-top:8px">Salin Stempel Masa</button>
+</details>
+
+<details class="w">
+  <summary>Skrip suara</summary>
+  <label>Teks yang akan dibaca</label>
+  <textarea id="script"></textarea>
+  <button id="aonly" class="p" style="width:100%;margin-top:8px">🎙️ Jana Audio Sahaja</button>
+  <audio id="aplay" controls style="display:none;width:100%;margin-top:8px"></audio>
+  <a id="adl" class="dl" style="margin-top:8px"></a>
+</details>
+
+<details class="w" id="vow">
+  <summary>Suara sahaja (teks + stempel masa)</summary>
+  <label>Tampal teks. Setiap baris mula dengan masa, contoh 00:00 atau 00:05.5 atau 00:00 - 00:04</label>
+  <textarea id="vtext" style="min-height:160px" inputmode="text" placeholder="Taip atau tampal di sini"></textarea>
+  <button id="vclear" style="width:100%;margin-top:8px">🗑️ Padam Teks</button>
+  <div class="row" style="margin-top:8px"><button id="vpaste">📋 Tampal</button><button id="vgit">Muat suara.txt (GitHub)</button></div>
+  <label>Atau buka fail teks dari phone (.txt / .srt)</label>
+  <input id="vfile" type="file" accept=".txt,.srt,.vtt,text/plain">
+  <label>Jika suara lebih panjang daripada ruang masa</label>
+  <select id="vfit"><option value="fast">Percepatkan sedikit tanpa ubah nada (maks 1.3x), lebih dari itu anjak</option><option value="push">Anjak baris seterusnya</option><option value="over">Biar bertindih</option></select>
+  <div class="row" style="margin-top:8px"><button id="vgen" class="p">Jana Suara Ikut Masa</button><button id="vplay">Dengar</button></div>
+  <a id="vdl" class="dl" style="margin-top:8px"></a>
+</details>
+
+<details class="w">
+  <summary>Tetapan</summary>
+  <label>Kunci API Gemini (kosongkan jika dalam Canvas)</label>
+  <input id="gkey" type="password" autocomplete="off">
+  <div class="row">
+    <div style="flex:1"><label>Model suara</label><select id="tmodel"><option value="gemini-2.5-flash-preview-tts">2.5 Flash (asal)</option><option value="gemini-3.1-flash-tts-preview">3.1 Flash (baru)</option><option value="gemini-2.5-pro-preview-tts">2.5 Pro (kualiti)</option></select></div>
+    <div style="flex:1"><label>Nama suara</label><select id="vname"><option>Kore</option><option>Zephyr</option><option>Puck</option><option>Charon</option><option>Fenrir</option><option>Leda</option><option>Orus</option><option>Aoede</option><option>Callirrhoe</option><option>Autonoe</option><option>Enceladus</option><option>Iapetus</option><option>Umbriel</option><option>Algieba</option><option>Despina</option><option>Erinome</option><option>Algenib</option><option>Rasalgethi</option><option>Laomedeia</option><option>Achernar</option><option>Alnilam</option><option>Schedar</option><option>Gacrux</option><option>Pulcherrima</option><option>Achird</option><option>Zubenelgenubi</option><option>Vindemiatrix</option><option>Sadachbia</option><option>Sadaltager</option><option>Sulafat</option></select></div>
+  </div>
+  <label>Gaya suara (arahan loghat dan nada)</label>
+  <select id="style"><optgroup label="Umum"><option value="Say in a clear, friendly narrator tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Narator mesra (asal)</option><option value="Say in a relaxed casual conversational tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Santai berbual</option><option value="Say in a calm, soft, soothing tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Tenang dan lembut</option><option value="Say in a cheerful, energetic tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Ceria bertenaga</option><option value="Say in a serious, firm tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Serius dan tegas</option><option value="Say in a sad, wistful tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Sedih dan sayu</option><option value="Say in a deeply moved, emotional tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Terharu penuh emosi</option><option value="Say in a rousing, passionate tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Semangat membakar</option><option value="Say in a quiet whisper with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Berbisik</option><option value="Say in a mysterious, suspenseful tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Misteri dan suspens</option><option value="Say in an eerie, horror storytelling voice with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Seram</option><option value="Say in a playful, comedic tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Lucu dan jenaka</option><option value="Say in an angry but clear tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Marah</option><option value="Say in a surprised, excited tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Terkejut dan teruja</option><option value="Say in a warm, romantic tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Romantis</option></optgroup><optgroup label="Sastera"><option value="Say as an expressive poetry recitation, with unhurried pacing and meaningful pauses with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Puisi</option><option value="Say as a dramatic modern poetry declamation, with strong dynamics and pauses with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Sajak</option><option value="Say as a traditional pantun recital, rhythmic, pausing after each line with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Pantun</option><option value="Say as a traditional syair recital, slow, flowing and melodious with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Syair</option><option value="Say as a gurindam recital, measured and wise, pausing between couplets with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Gurindam</option><option value="Say as a witty seloka recital with a teasing rhythm with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Seloka</option><option value="Say as a powerful stage declamation with a projected voice with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Deklamasi pentas</option><option value="Say as a traditional Malay storyteller, vivid and captivating with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Penglipur lara</option><option value="Say as a gentle, animated storyteller for young children with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Cerita kanak-kanak</option><option value="Say as a slow, soft bedtime story with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Dongeng sebelum tidur</option><option value="Say as an audiobook narrator, natural and immersive with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Novel audio</option><option value="Say as a formal public speech, confident and well paced with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Pidato</option><option value="Say as a persuasive oratory competition speech with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Syarahan</option></optgroup><optgroup label="Media"><option value="Say as a formal television news anchor with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Pembaca berita</option><option value="Say as a field reporter, urgent and informative with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Wartawan lapangan</option><option value="Say as a documentary narrator, deep, measured and thoughtful with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Dokumentari</option><option value="Say as a nature documentary narrator, quiet and full of wonder with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Dokumentari alam</option><option value="Say as a history documentary narrator, solemn and authoritative with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Sejarah</option><option value="Say as an upbeat radio DJ with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">DJ radio</option><option value="Say as a podcast host, natural and engaging with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Hos podcast</option><option value="Say as a fast, excited sports commentator with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Pengulas sukan</option><option value="Say as a polite formal event emcee with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Pengacara majlis</option><option value="Say as a lively entertainment show host with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Hos rancangan hiburan</option><option value="Say as a dramatic movie trailer voice with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Trailer filem</option><option value="Say as a clear public announcement with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Pengumuman awam</option></optgroup><optgroup label="Video dan jualan"><option value="Say as a fast, punchy short-video hook with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Hook TikTok</option><option value="Say as an honest, friendly product review with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Review produk</option><option value="Say as an enthusiastic advertisement voice with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Iklan jualan</option><option value="Say as an energetic live-stream seller with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Jualan live</option><option value="Say as an elegant, understated premium brand advertisement with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Iklan premium</option></optgroup><optgroup label="Ilmu"><option value="Say as a patient teacher explaining step by step with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Cikgu mengajar</option><option value="Say as a clear technical tutorial instructor, precise and unhurried with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Tutorial teknikal</option><option value="Say as a firm, clear safety briefing with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Taklimat keselamatan</option><option value="Say as an inspiring motivational speaker with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Motivasi</option><option value="Say as a calm, respectful religious reminder with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Nasihat agama</option><option value="Say as a very slow, relaxing meditation guide with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)">Meditasi</option></optgroup></select>
+  <label>Repo GitHub (jika dibuka di luar halaman repo)</label>
+  <select id="repo"><option value="zarouqs-rgb/jambatan">zarouqs-rgb/jambatan</option></select>
+  <label>Cabang</label>
+  <select id="branch"><option value="main">main (asal)</option></select>
+</details>
+
+<video id="pv" class="w" controls playsinline style="display:none"></video>
+<a id="dl" class="w dl"></a>
+
+<details class="w" id="thw" open>
+  <summary>Thumbnail</summary>
+  <button id="thbtn" class="p" style="margin-top:8px">Jana Thumbnail</button>
+  <img id="thimg" style="display:none;width:100%;border-radius:12px;margin-top:10px">
+  <a id="thdl" class="dl" style="margin-top:10px"></a>
+  <details style="margin-top:10px"><summary>Arahan thumbnail (daripada GitHub)</summary>
+    <textarea id="tt" style="min-height:200px"></textarea>
+  </details>
+</details>
+
+<script>
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const S = {g(k){try{return localStorage.getItem(k)||''}catch(e){return ''}},s(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const D = {tmodel:'gemini-2.5-flash-preview-tts', vname:'Kore', style:'Say in a clear, friendly narrator tone with a Malaysian Malay accent (Bahasa Melayu Malaysia, not Indonesian pronunciation)', repo:'zarouqs-rgb/jambatan', branch:'main'};
+['gkey','tmodel','vname','style','repo','branch'].forEach(k=>{
+  const el=$(k); el.value=S.g('sv_'+k)||D[k]||''; if(el.tagName==='SELECT'&&el.selectedIndex<0) el.value=D[k];
+  el.addEventListener('input',()=>S.s('sv_'+k,el.value.trim()));
+});
+const st=(m,e)=>{$('st').textContent=m;$('st').className='w'+(e?' err':'');$('st').id='st'};
+
+let vBuf=null, vCues=null, vLines=[], cues=null, cueLines=[], V=null, ac=null, abuf=null, playing=false, recording=false, t0=0, raf=0, mr=null, chunks=[];
+
+// ---------- muat fail (relatif dahulu, kemudian GitHub) ----------
+async function getText(path){
+  try{
+    const r=await fetch(path+'?t='+Date.now(),{cache:'no-store'});
+    if(r.ok){const t=await r.text(); if(t.trim() && !/^\s*<!doctype/i.test(t)) return t;}
+  }catch(e){}
+  const repo=$('repo').value.trim()||D.repo, br=$('branch').value.trim()||'main';
+  const u='https://api.github.com/repos/'+repo+'/contents/'+path+'?ref='+encodeURIComponent(br)+'&_='+Date.now();
+  const r=await fetch(u,{headers:{Accept:'application/vnd.github.raw+json'},cache:'no-store'});
+  if(!r.ok) throw new Error('GitHub '+r.status+' untuk '+path);
+  return await r.text();
+}
+
+async function getBin(path){
+  const repo=$('repo').value.trim()||D.repo, br=$('branch').value.trim()||'main';
+  const urls=[path+'?t='+Date.now(),'https://raw.githubusercontent.com/'+repo+'/'+br+'/'+path+'?t='+Date.now(),'https://cdn.jsdelivr.net/gh/'+repo+'@'+br+'/'+path];
+  for(const u of urls){try{const r=await fetch(u,{cache:'no-store'});if(r.ok){const ct=r.headers.get('content-type')||'';if(!/text\/html/.test(ct))return await r.arrayBuffer();}}catch(e){}}
+  throw new Error('Gagal muat '+path);
+}
+async function getLib(path){ // muat pustaka JS sekali sahaja
+  window.__libs=window.__libs||{};if(window.__libs[path])return;
+  const code=new TextDecoder().decode(await getBin(path));(0,eval)(code);window.__libs[path]=1;
+}
+window.getBin=getBin;window.getLib=getLib;window.getTextFile=p=>getText(p);
+function runCode(code){
+  return new Promise((res,rej)=>{
+    window.VIDEO=null;
+    const old=document.getElementById('vjs'); if(old) old.remove();
+    const viaFn=()=>{try{(new Function(code))(); window.VIDEO?res(window.VIDEO):rej(new Error('Kod adegan tidak menetapkan VIDEO'))}catch(e){rej(e)}};
+    try{
+      const url=URL.createObjectURL(new Blob([code],{type:'text/javascript'}));
+      const s=document.createElement('script'); s.id='vjs'; s.src=url;
+      s.onload=()=>window.VIDEO?res(window.VIDEO):viaFn();
+      s.onerror=viaFn;
+      document.body.appendChild(s);
+    }catch(e){viaFn()}
+  });
+}
+
+
+// ---------- stempel masa ayat & penyelarasan babak ----------
+const fmt=t=>{const m=Math.floor(t/60),s=t-m*60;return String(m).padStart(2,'0')+':'+(s<10?'0':'')+s.toFixed(1)};
+function analyzeCues(){
+  if(abuf&&abuf===vBuf&&vCues){ cues=vCues.slice(); cueLines=vLines.slice();
+    $('ts').value=cueLines.map((l,i)=>fmt(cues[i])+'  '+l).join('\n')+'\n'+fmt(cues[cues.length-1])+'  (tamat suara)'; $('tsw').style.display='block'; return; }
+  cues=null; cueLines=[];
+  if(!abuf) return;
+  const lines=$('script').value.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+  if(!lines.length) return;
+  const ch=abuf.getChannelData(0), win=Math.floor(abuf.sampleRate*.02), n=Math.floor(ch.length/win);
+  const rms=new Float32Array(n); let mx=0;
+  for(let i=0;i<n;i++){let s=0;for(let j=0;j<win;j++){const v=ch[i*win+j];s+=v*v}rms[i]=Math.sqrt(s/win);if(rms[i]>mx)mx=rms[i]}
+  const thr=mx*.04, runs=[]; let st=-1, first=0, last=n;
+  while(first<n&&rms[first]<thr) first++;
+  while(last>first&&rms[last-1]<thr) last--;
+  for(let i=first;i<=last;i++){
+    const q=i<last&&rms[i]<thr;
+    if(q&&st<0) st=i;
+    if(!q&&st>=0){ const l=(i-st)*.02; if(l>=.09) runs.push({c:(st+i)/2*.02,e:i*.02,l}); st=-1 }
+  }
+  const t0v=first*.02, t1v=last*.02, span=t1v-t0v;
+  const chars=lines.map(l=>l.length), tot=chars.reduce((x,y)=>x+y,0);
+  const c=[t0v]; let acc=0;
+  for(let k=0;k<lines.length-1;k++){
+    acc+=chars[k]; const exp=t0v+acc/tot*span; let best=null,bs=-1e9;
+    for(const r of runs){
+      const d=Math.abs(r.c-exp);
+      if(d<span*.12&&r.e>c[c.length-1]+.4){const sc=r.l-.2*d; if(sc>bs){bs=sc;best=r}}
+    }
+    c.push(best?best.e:exp);
+  }
+  c.push(t1v);
+  cues=c; cueLines=lines;
+  $('ts').value=lines.map((l,i)=>fmt(c[i])+'  '+l).join('\n')+'\n'+fmt(t1v)+'  (tamat suara)';
+  $('tsw').style.display='block';
+}
+function sceneTime(el){
+  if(!V) return 0;
+  if(V.loop!==false) return el%V.duration;
+  let t=el;
+  if(abuf&&V.beats&&cues&&V.beats.length===cues.length){
+    const B=V.beats,C=cues,e=C.length-1;
+    if(el>=C[e]) t=B[e]+(el-C[e]);
+    else if(el<C[0]) t=B[0]+(el-C[0]);
+    else{ let i=0; while(i<e-1&&el>=C[i+1]) i++; t=B[i]+(el-C[i])/(C[i+1]-C[i])*(B[i+1]-B[i]) }
+  }
+  return Math.max(0,Math.min(t,V.duration));
+}
+$('cpts').onclick=async()=>{
+  const ta=$('ts'),txt=ta.value;
+  try{await navigator.clipboard.writeText(txt)}catch(e){ta.select();ta.setSelectionRange(0,99999);try{document.execCommand('copy')}catch(_){}}
+  $('cpts').textContent='Disalin ✓';setTimeout(()=>$('cpts').textContent='Salin Stempel Masa',1500);
+};
+
+function frame(t){
+  try{V.draw(ctx,t,cv.width,cv.height)}catch(e){st('Ralat adegan: '+e.message,1);playing=false}
+}
+
+async function loadAll(){
+  try{
+    st('Memuatkan adegan dan skrip...');
+    stop();
+    V=await runCode(await getText('video.js'));
+    if(V.ready){st('Memuatkan model 3D (kali pertama mungkin ambil masa)...');await V.ready(st);}
+    cv.width=V.width; cv.height=V.height; frame(0);
+    try{ $('script').value=(await getText('skrip.txt')).trim(); }catch(e){}
+    await loadThumbCfg();
+    st('Siap dimuatkan: '+V.width+'×'+V.height+', adegan '+V.duration+' saat'+(V.loop===false?'.':' (berulang).'));
+  }catch(e){st(e.message,1)}
+}
+
+// ---------- suara ----------
+function b64ToBytes(b){const s=atob(b),n=s.length,a=new Uint8Array(n);for(let i=0;i<n;i++)a[i]=s.charCodeAt(i);return a}
+function ensureAC(){ if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); return ac }
+
+async function tts(text){
+  const key=$('gkey').value.trim(), model=$('tmodel').value.trim()||D.tmodel, vn=$('vname').value.trim()||D.vname, style=$('style').value.trim();
+  const body={contents:[{parts:[{text:(style?style+': ':'')+text}]}],generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:vn}}}}};
+  for(let tryN=0;;tryN++){
+    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){
+      if((r.status===429||r.status>=500)&&tryN<4){ st('Had kadar API, cuba semula dalam '+(15*(tryN+1))+' saat...'); await new Promise(z=>setTimeout(z,15000*(tryN+1))); continue; }
+      throw new Error('Suara '+r.status+': '+((j.error&&j.error.message)||''));
+    }
+    const part=(((j.candidates||[])[0]||{}).content?.parts||[]).find(p=>p.inlineData);
+    if(!part){ if(tryN<2) continue; throw new Error('Tiada audio dalam jawapan'); }
+    const rate=+((/rate=(\d+)/.exec(part.inlineData.mimeType||'')||[])[1])||24000;
+    const bytes=b64ToBytes(part.inlineData.data);
+    const n=Math.floor(bytes.length/2), dv=new DataView(bytes.buffer), d=new Float32Array(n);
+    for(let i=0;i<n;i++) d[i]=dv.getInt16(i*2,true)/32768;
+    return {d,rate};
+  }
+}
+
+async function makeVoice(){
+  const text=$('script').value.trim();
+  if(!text) return st('Isi skrip suara dahulu',1);
+  $('voice').disabled=true;
+  try{
+    st('Menjana suara...');
+    const {d,rate}=await tts(text);
+    const a=ensureAC(); abuf=a.createBuffer(1,d.length,rate); abuf.getChannelData(0).set(d);
+    analyzeCues(); st('Suara siap: '+abuf.duration.toFixed(1)+' saat'+(V&&V.beats&&cues&&V.beats.length===cues.length?', babak mengikut stempel masa':'')+'. Tekan Main atau Rakam & Simpan.');
+  }catch(e){st(e.message,1)}
+  finally{$('voice').disabled=false}
+}
+
+// ---------- suara sahaja ikut stempel masa ----------
+function parseTime(x){
+  x=x.replace(',','.'); const p=x.split(':').map(Number);
+  if(p.some(isNaN)) return NaN;
+  return p.length===3?p[0]*3600+p[1]*60+p[2]:p.length===2?p[0]*60+p[1]:p[0];
+}
+function parseStamped(raw){
+  const T='(\\d{1,2}:\\d{1,2}(?::\\d{1,2})?(?:[.,]\\d+)?|\\d+(?:\\.\\d+)?s)';
+  const re=new RegExp('^\\s*[\\[(]?'+T+'[\\])]?\\s*(?:(?:-->|[-–—~>]|hingga|sampai)\\s*[\\[(]?'+T+'[\\])]?)?\\s*[:|.\\-–—]?\\s*(.*)$','i');
+  const segs=[];
+  for(const line of raw.split(/\r?\n/)){
+    const l=line.trim(); if(!l||/^\d+$/.test(l)) continue;
+    const m=re.exec(l);
+    if(m){ const s=parseTime(m[1].replace(/s$/i,'')), e=m[2]?parseTime(m[2].replace(/s$/i,'')):null;
+      if(!isNaN(s)){ segs.push({s,e:(e!=null&&!isNaN(e)&&e>s)?e:null,text:m[3].trim()}); continue; } }
+    if(segs.length) segs[segs.length-1].text+=(segs[segs.length-1].text?' ':'')+l;
+    else segs.push({s:0,e:null,text:l});
+  }
+  return segs.filter(g=>g.text);
+}
+function trimSil(d,rate){
+  const th=0.012; let a=0,b=d.length-1;
+  while(a<b&&Math.abs(d[a])<th) a++;
+  while(b>a&&Math.abs(d[b])<th) b--;
+  a=Math.max(0,a-Math.floor(rate*.03)); b=Math.min(d.length-1,b+Math.floor(rate*.08));
+  return d.subarray(a,b+1);
+}
+function resample(d,f){ // f>1 = lebih laju, nada KEKAL (WSOLA)
+  const rate=24000, W=Math.floor(rate*.03), H=W>>1, tol=Math.floor(rate*.008);
+  const n=Math.floor(d.length/f), o=new Float32Array(n+W), wsum=new Float32Array(n+W), win=new Float32Array(W);
+  for(let i=0;i<W;i++) win[i]=.5-.5*Math.cos(2*Math.PI*i/W);
+  let prev=0;
+  for(let out=0;out<n;out+=H){
+    const nom=Math.floor(out*f); let best=nom;
+    if(out>0){ let bs=-1e9; const ref=prev+H;
+      for(let k=-tol;k<=tol;k+=2){ const c=nom+k; if(c<0||c+W>=d.length) continue; let sc=0;
+        for(let j=0;j<W;j+=4) sc+=d[c+j]*(d[ref+j]||0); if(sc>bs){bs=sc;best=c} } }
+    if(best+W>=d.length) break;
+    for(let j=0;j<W;j++){ o[out+j]+=d[best+j]*win[j]; wsum[out+j]+=win[j]; }
+    prev=best;
+  }
+  for(let i=0;i<n;i++) if(wsum[i]>1e-3) o[i]/=wsum[i];
+  return o.subarray(0,n);
+}
+function splitBySilence(d,rate,texts){ // cari sempadan ayat dalam satu rakaman penuh
+  const win=Math.floor(rate*.02), n=Math.floor(d.length/win), rms=new Float32Array(n); let mx=0;
+  for(let i=0;i<n;i++){let s=0;for(let j=0;j<win;j++){const v=d[i*win+j];s+=v*v}rms[i]=Math.sqrt(s/win);if(rms[i]>mx)mx=rms[i]}
+  const thr=mx*.04, runs=[]; let st0=-1, first=0, last=n;
+  while(first<n&&rms[first]<thr) first++;
+  while(last>first&&rms[last-1]<thr) last--;
+  for(let i=first;i<=last;i++){ const q=i<last&&rms[i]<thr;
+    if(q&&st0<0) st0=i; if(!q&&st0>=0){ const l=(i-st0)*.02; if(l>=.12) runs.push({a:st0*.02,e:i*.02,c:(st0+i)/2*.02,l}); st0=-1 } }
+  const t0=first*.02, t1=last*.02, span=t1-t0, chars=texts.map(t=>t.length), tot=chars.reduce((x,y)=>x+y,0);
+  const b=[t0]; let acc=0;
+  for(let k=0;k<texts.length-1;k++){
+    acc+=chars[k]; const exp=t0+acc/tot*span; let best=null,bs=-1e9;
+    for(const r of runs){ const dd=Math.abs(r.c-exp);
+      if(dd<span*.15&&r.c>b[b.length-1]+.3){const sc=r.l*2-dd/span*3; if(sc>bs){bs=sc;best=r}} }
+    b.push(best?best.c:exp);
+  }
+  b.push(t1);
+  return texts.map((_,i)=>{ const a=Math.max(0,Math.floor(b[i]*rate)), e=Math.min(d.length,Math.ceil(b[i+1]*rate)); return trimSil(d.subarray(a,e),rate); });
+}
+function toWav(buf){
+  const d=buf.getChannelData(0), rate=buf.sampleRate, n=d.length, ab=new ArrayBuffer(44+n*2), v=new DataView(ab);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+  w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,rate,true);v.setUint32(28,rate*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++){const x=Math.max(-1,Math.min(1,d[i]));v.setInt16(44+i*2,x<0?x*32768:x*32767,true)}
+  return new Blob([ab],{type:'audio/wav'});
+}
+let vSrc=null;
+async function makeStamped(){
+  const segs=parseStamped($('vtext').value);
+  if(!segs.length) return st('Tampal teks dengan stempel masa dahulu',1);
+  segs.sort((a,b)=>a.s-b.s);
+  const mode=$('vfit').value;
+  $('vgen').disabled=true; $('vdl').style.display='none';
+  try{
+    st('Menjana suara (sekali jalan supaya nada sekata)...');
+    const full=await tts(segs.map(g=>g.text.replace(/\s+/g,' ').replace(/([^.!?…])$/,'$1.')).join('\n\n'));
+    const rate=full.rate, clips=segs.length>1?splitBySilence(full.d,rate,segs.map(g=>g.text)):[trimSil(full.d,rate)];
+    const notes=[]; let cursor=0; const place=[];
+    for(let i=0;i<segs.length;i++){
+      let c=clips[i], start=segs[i].s;
+      if(mode!=='over'&&start<cursor){ notes.push('baris '+(i+1)+' dianjak +'+(cursor-start).toFixed(1)+'s'); start=cursor; }
+      const limit=segs[i].e!=null?segs[i].e:(i+1<segs.length?segs[i+1].s:Infinity);
+      const room=limit-start-0.05, len=c.length/rate;
+      if(mode==='fast'&&room>0&&len>room){
+        const f=Math.min(1.3,len/room); c=resample(c,f);
+        notes.push('baris '+(i+1)+' dipercepat '+f.toFixed(2)+'x'+(len/f>room+0.01?' (masih lebih '+(len/f-room).toFixed(1)+'s)':''));
+      } else if(mode!=='fast'&&len>room&&room>0) notes.push('baris '+(i+1)+' lebih '+(len-room).toFixed(1)+'s');
+      place.push({c,start}); cursor=start+c.length/rate+0.1;
+    }
+    const lastEnd=Math.max(...place.map(p=>p.start+p.c.length/rate)), lastE=segs[segs.length-1].e||0;
+    const total=Math.ceil((Math.max(lastEnd,lastE)+0.4)*rate);
+    const a=ensureAC(); vBuf=a.createBuffer(1,total,rate); const out=vBuf.getChannelData(0);
+    for(const p of place){const o=Math.round(p.start*rate);for(let k=0;k<p.c.length&&o+k<total;k++)out[o+k]+=p.c[k]}
+    for(let k=0;k<total;k++) out[k]=Math.max(-1,Math.min(1,out[k]));
+    abuf=vBuf; vCues=place.map(p=>p.start).concat([lastEnd]); vLines=segs.map(g=>g.text); analyzeCues();
+    const blob=toWav(vBuf), dl=$('vdl');
+    if(dl.href) URL.revokeObjectURL(dl.href);
+    dl.href=URL.createObjectURL(blob); dl.download='suara-'+Date.now()+'.wav';
+    dl.textContent='Muat Turun Suara (WAV, '+vBuf.duration.toFixed(1)+' saat)'; dl.style.display='block';
+    st('Suara siap: '+segs.length+' baris, '+vBuf.duration.toFixed(1)+' saat. '+(notes.length?'Nota: '+notes.join('; ')+'. ':'Semua muat dalam masa. ')+'Suara ini juga dipakai untuk Main / Rakam.');
+  }catch(e){st(e.message,1)}
+  finally{$('vgen').disabled=false}
+}
+function playStamped(){
+  if(!vBuf) return st('Jana suara dahulu',1);
+  const a=ensureAC();
+  if(vSrc){try{vSrc.stop()}catch(e){} vSrc=null; $('vplay').textContent='Dengar'; return;}
+  vSrc=a.createBufferSource(); vSrc.buffer=vBuf; vSrc.connect(a.destination); vSrc.start();
+  $('vplay').textContent='Henti'; vSrc.onended=()=>{vSrc=null;$('vplay').textContent='Dengar'};
+}
+$('vpaste').onclick=async()=>{
+  try{ const t=await navigator.clipboard.readText(); if(!t.trim()) throw 0;
+    $('vtext').value=t; S.s('sv_vtext',t); st('Teks ditampal: '+t.split(/\n/).filter(x=>x.trim()).length+' baris.'); }
+  catch(e){ // Canvas sekat baca clipboard: guna tampal manual
+    const ta=$('vtext'); ta.focus(); ta.select(); ta.scrollIntoView({block:'center'});
+    st('Butang ini disekat di sini. Tekan lama dalam kotak teks, pilih Tampal (atau tekan teks pada papan klip keyboard).',1); }
+};
+$('vclear').onclick=()=>{ $('vtext').value=''; S.s('sv_vtext',''); $('vtext').focus(); st('Teks dipadam'); };
+$('tsclear').onclick=()=>{ $('ts').value=''; $('ts').focus(); st('Teks stempel masa dipadam'); };
+$('vfile').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{ const t=(await f.text()).replace(/^\uFEFF/,'').replace(/^WEBVTT.*\r?\n/,'').trim(); if(!t) throw 0;
+    $('vtext').value=t; S.s('sv_vtext',t); st('Fail dimuat: '+f.name); }
+  catch(_){ st('Fail kosong atau tak boleh dibaca',1); }
+  e.target.value='';
+};
+$('vgit').onclick=async()=>{
+  try{ st('Memuat suara.txt...'); const t=await getText('suara.txt'); $('vtext').value=t.trim(); S.s('sv_vtext',t.trim()); st('suara.txt dimuat: '+t.split(/\n/).filter(x=>x.trim()).length+' baris.'); }
+  catch(e){ st('Tiada suara.txt dalam GitHub lagi',1); }
+};
+$('aonly').onclick=async()=>{
+  const text=$('script').value.trim(); if(!text) return st('Isi skrip suara dahulu',1);
+  const b=$('aonly'), dl=$('adl'), au=$('aplay'); b.disabled=true; dl.style.display=au.style.display='none';
+  try{ st('Menjana audio...'); const r=await tts(text);
+    const buf=ensureAC().createBuffer(1,r.d.length,r.rate); buf.getChannelData(0).set(r.d);
+    if(dl.href) URL.revokeObjectURL(dl.href);
+    const url=URL.createObjectURL(toWav(buf)); au.src=url; au.style.display='block';
+    dl.href=url; dl.download='audio-'+Date.now()+'.wav'; dl.textContent='Muat Turun Audio (WAV, '+buf.duration.toFixed(1)+' saat)'; dl.style.display='block';
+    st('Audio siap');
+  }catch(e){st(e.message,1)}
+  finally{b.disabled=false}
+};
+$('vgen').onclick=makeStamped; $('vplay').onclick=playStamped;
+try{ $('vtext').value=S.g('sv_vtext'); $('vtext').addEventListener('input',()=>S.s('sv_vtext',$('vtext').value)); }catch(e){}
+
+// ---------- main / rakam ----------
+let src=null;
+function startAudio(dest){
+  if(!abuf) return;
+  const a=ensureAC(); src=a.createBufferSource(); src.buffer=abuf;
+  if(dest) src.connect(dest); else src.connect(a.destination);
+  src.start();
+}
+function stop(){
+  playing=false; recording=false; cancelAnimationFrame(raf);
+  try{src&&src.stop()}catch(e){} src=null;
+  $('play').textContent='Main';
+}
+function tick(now){
+  if(!playing) return;
+  const el=(now-t0)/1000;
+  if(recording){
+    const dur=abuf?abuf.duration+0.6:V.duration;
+    if(el>=dur){ finishRec(); return; }
+  }
+  frame(sceneTime(el));
+  raf=requestAnimationFrame(tick);
+}
+function play(){
+  if(!V) return st('Muat adegan dahulu',1);
+  if(playing&&!recording){stop();return}
+  ensureAC(); analyzeCues(); playing=true; t0=performance.now(); startAudio(null);
+  $('play').textContent='Henti'; raf=requestAnimationFrame(tick);
+}
+function pickMime(){
+  const c=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  return c.find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||'';
+}
+function startRecMR(){
+  if(!V) return st('Muat adegan dahulu',1);
+  if(recording) return;
+  if(!window.MediaRecorder) return st('Pelayar tidak menyokong rakaman',1);
+  stop();
+  const a=ensureAC(), dest=a.createMediaStreamDestination();
+  const vs=cv.captureStream(V.fps||30);
+  const tracks=[...vs.getVideoTracks()]; if(abuf) tracks.push(...dest.stream.getAudioTracks());
+  const mime=pickMime();
+  mr=new MediaRecorder(new MediaStream(tracks), mime?{mimeType:mime,videoBitsPerSecond:8e6,audioBitsPerSecond:128000}:{videoBitsPerSecond:8e6});
+  chunks=[];
+  mr.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+  mr.onstop=()=>{
+    const type=(mr.mimeType||mime||'video/webm').split(';')[0];
+    const blob=new Blob(chunks,{type}), url=URL.createObjectURL(blob), ext=type.includes('mp4')?'mp4':'webm';
+    const pv=$('pv'); pv.src=url; pv.style.display='block';
+    const dl=$('dl'); dl.href=url; dl.download='video.'+ext; dl.style.display='block';
+    dl.textContent='Muat Turun Video ('+ext.toUpperCase()+', '+(blob.size/1048576).toFixed(1)+' MB'+(abuf?', dengan suara':', tanpa suara')+')';
+    st('Siap direkod.'); $('rec').disabled=false; $('play').disabled=false; $('voice').disabled=false;
+  };
+  analyzeCues(); recording=true; playing=true; t0=performance.now();
+  $('rec').disabled=true; $('play').disabled=true; $('voice').disabled=true;
+  st('Merekod'+(abuf?' dengan suara':' tanpa suara (jana suara dahulu jika mahu)')+'...');
+  mr.start(250); startAudio(dest); raf=requestAnimationFrame(tick);
+}
+// ---------- rakam: susun bingkai satu-satu (WebCodecs) jadi MP4 lengkap, tempoh betul di galeri ----------
+let MUX=null;
+async function getMuxer(){ if(MUX) return MUX; MUX=(new Function(await getText('lib/mp4-muxer.js')+'\nreturn Mp4Muxer;'))(); return MUX; }
+async function pickVideoCfg(w,h,fps){
+  for(const codec of ['avc1.640028','avc1.4d0028','avc1.640033','avc1.42003e','avc1.420034']){
+    const c={codec,width:w,height:h,bitrate:8e6,framerate:fps,avc:{format:'avc'}};
+    try{ const r=await VideoEncoder.isConfigSupported(c); if(r.supported) return c; }catch(e){}
+  }
+  return null;
+}
+async function pickAudioCfg(){
+  for(const [codec,mc] of [['mp4a.40.2','aac'],['opus','opus']]){
+    const c={codec,sampleRate:48000,numberOfChannels:1,bitrate:128000};
+    try{ const r=await AudioEncoder.isConfigSupported(c); if(r.supported) return {cfg:c,mc}; }catch(e){}
+  }
+  return null;
+}
+async function voice48k(){
+  const n=Math.ceil(abuf.duration*48000), oc=new OfflineAudioContext(1,n,48000), s=oc.createBufferSource();
+  s.buffer=abuf; s.connect(oc.destination); s.start(); return (await oc.startRendering()).getChannelData(0);
+}
+async function startRec(){
+  if(!V) return st('Muat adegan dahulu',1);
+  if(recording) return;
+  if(!window.VideoEncoder) return startRecMR();
+  stop(); recording=true;
+  $('rec').disabled=true; $('play').disabled=true; $('voice').disabled=true;
+  try{
+    const M=await getMuxer(), fps=V.fps||30, w=cv.width, h=cv.height;
+    const vcfg=await pickVideoCfg(w,h,fps); if(!vcfg) throw new Error('H.264 tidak disokong');
+    const acfg=abuf&&window.AudioEncoder?await pickAudioCfg():null;
+    const muxer=new M.Muxer({target:new M.ArrayBufferTarget(),fastStart:'in-memory',firstTimestampBehavior:'offset',
+      video:{codec:'avc',width:w,height:h,frameRate:fps},
+      audio:acfg?{codec:acfg.mc,numberOfChannels:1,sampleRate:48000}:undefined});
+    let err=null;
+    const ve=new VideoEncoder({output:(c,m)=>muxer.addVideoChunk(c,m),error:e=>err=e}); ve.configure(vcfg);
+    if(acfg){
+      const ae=new AudioEncoder({output:(c,m)=>muxer.addAudioChunk(c,m),error:e=>err=e}); ae.configure(acfg.cfg);
+      const pcm=await voice48k(), N=1024;
+      for(let i=0;i<pcm.length;i+=N){
+        const part=pcm.subarray(i,Math.min(i+N,pcm.length));
+        const ad=new AudioData({format:'f32-planar',sampleRate:48000,numberOfFrames:part.length,numberOfChannels:1,timestamp:Math.round(i/48000*1e6),data:part.slice()});
+        ae.encode(ad); ad.close();
+      }
+      await ae.flush(); ae.close();
+    }
+    analyzeCues();
+    const dur=abuf?abuf.duration+0.6:V.duration, total=Math.round(dur*fps);
+    for(let i=0;i<total;i++){
+      if(err) throw err;
+      frame(sceneTime(i/fps));
+      const vf=new VideoFrame(cv,{timestamp:Math.round(i*1e6/fps),duration:Math.round(1e6/fps)});
+      ve.encode(vf,{keyFrame:i%(fps*2)===0}); vf.close();
+      while(ve.encodeQueueSize>4) await new Promise(r=>setTimeout(r,0));
+      if(i%15===0){ st('Menyusun video: '+Math.round(i/total*100)+'%'); await new Promise(r=>setTimeout(r,0)); }
+    }
+    await ve.flush(); ve.close(); if(err) throw err;
+    muxer.finalize();
+    const blob=new Blob([muxer.target.buffer],{type:'video/mp4'}), url=URL.createObjectURL(blob);
+    const pv=$('pv'); pv.src=url; pv.style.display='block';
+    const dl=$('dl'); dl.href=url; dl.download='video.mp4'; dl.style.display='block';
+    dl.textContent='Muat Turun Video (MP4, '+(blob.size/1048576).toFixed(1)+' MB, '+dur.toFixed(1)+' saat'+(acfg?', dengan suara':abuf?', TANPA suara: pelayar tak sokong pengekod audio':', tanpa suara')+')';
+    st('Siap. Tempoh '+dur.toFixed(1)+' saat, 30 fps tetap.');
+    recording=false; $('rec').disabled=false; $('play').disabled=false; $('voice').disabled=false;
+  }catch(e){
+    console.warn(e); recording=false;
+    st('Cara baru gagal ('+(e.message||e)+'), guna rakaman masa nyata...');
+    startRecMR();
+  }
+}
+
+function finishRec(){
+  frame(V.loop===false?V.duration:(abuf?abuf.duration:V.duration)%V.duration);
+  recording=false; playing=false; $('play').textContent='Main';
+  try{src&&src.stop()}catch(e){} src=null;
+  setTimeout(()=>mr.stop(),200);
+}
+
+
+// ---------- thumbnail (Gemini jana imej daripada arahan dalam thumb.json) ----------
+let thCfg=null;
+async function loadThumbCfg(){
+  try{ thCfg=JSON.parse(await getText('thumb.json')); $('tt').value=thCfg.prompt||''; }catch(e){ thCfg=null }
+}
+function refFrame(t){
+  const c=document.createElement('canvas'); c.width=V.width; c.height=V.height;
+  V.hideLabels=true; try{V.draw(c.getContext('2d'),t,c.width,c.height)}finally{V.hideLabels=false}
+  const q=document.createElement('canvas'); q.width=540; q.height=960; q.getContext('2d').drawImage(c,0,0,540,960);
+  return q.toDataURL('image/jpeg',.88).split(',')[1];
+}
+async function makeThumb(){
+  if(!V) return st('Muat adegan dahulu',1);
+  if(!thCfg) await loadThumbCfg();
+  if(!thCfg) return st('thumb.json tidak ditemui',1);
+  const prompt=$('tt').value.trim()||thCfg.prompt;
+  const key=$('gkey').value.trim();
+  const parts=[{text:prompt}];
+  if(thCfg.ref_t!=null) parts.push({inlineData:{mimeType:'image/jpeg',data:refFrame(+thCfg.ref_t)}});
+  const models=[thCfg.model||'gemini-3.1-flash-image','gemini-2.5-flash-image'];
+  $('thbtn').disabled=true; let lastErr='';
+  try{
+    for(const m of models){
+      st('Menjana thumbnail ('+m+')...');
+      const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+m+':generateContent?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts}],generationConfig:{responseModalities:['TEXT','IMAGE'],imageConfig:{aspectRatio:thCfg.aspect||'9:16'}}})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok){ lastErr=m+' '+r.status+': '+((j.error&&j.error.message)||''); continue }
+      const p=(((j.candidates||[])[0]||{}).content?.parts||[]).find(x=>x.inlineData);
+      if(!p){ lastErr=m+': tiada gambar dalam jawapan'; continue }
+      const mime=p.inlineData.mimeType||'image/png', url=URL.createObjectURL(new Blob([b64ToBytes(p.inlineData.data)],{type:mime}));
+      $('thimg').src=url; $('thimg').style.display='block';
+      const d=$('thdl'); d.href=url; d.download='thumbnail.'+(mime.includes('jpeg')?'jpg':'png'); d.style.display='block'; d.textContent='Muat Turun Thumbnail';
+      return st('Thumbnail siap.');
+    }
+    st(lastErr||'Gagal menjana thumbnail',1);
+  }catch(e){st(e.message,1)}
+  finally{$('thbtn').disabled=false}
+}
+$('thbtn').onclick=makeThumb;
+
+$('load').onclick=loadAll; $('voice').onclick=makeVoice; $('play').onclick=play; $('rec').onclick=startRec;
+loadAll();
+</script>
+</body>
+</html>
