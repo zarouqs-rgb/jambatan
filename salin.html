@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html lang="ms"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Salin Kod Studio Video</title>
+<style>body{margin:0;padding:16px;background:#0f1419;color:#e6e9ee;font-family:system-ui,sans-serif;text-align:center}
+button{width:100%;max-width:440px;padding:22px;border:0;border-radius:12px;font-size:19px;font-weight:700;background:#3b82f6;color:#fff}button:disabled{opacity:.5}</style></head>
+<body><button id="b" disabled>Memuat kod...</button><p id="m"></p>
+<script>
+const b=document.getElementById('b'),m=document.getElementById('m');let code='';
+fetch('index.html?t='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw 0;return r.text()}).then(t=>{code=t;b.disabled=false;b.textContent='📋 Salin Semua Kod';m.textContent=t.split('\n').length+' baris'}).catch(()=>{b.textContent='Gagal muat';m.textContent='Muat semula halaman.'});
+b.onclick=async()=>{try{await navigator.clipboard.writeText(code);b.textContent='Disalin ✓';m.textContent='Tampal dalam Canvas, ganti semua kod lama.'}catch(e){m.textContent='Gagal salin. Buka halaman ini dalam Chrome.'}};
+</script></body></html>
