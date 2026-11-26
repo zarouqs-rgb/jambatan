@@ -48,6 +48,9 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
   <summary>Skrip suara</summary>
   <label>Teks yang akan dibaca</label>
   <textarea id="script"></textarea>
+  <button id="aonly" class="p" style="width:100%;margin-top:8px">🎙️ Jana Audio Sahaja</button>
+  <audio id="aplay" controls style="display:none;width:100%;margin-top:8px"></audio>
+  <a id="adl" class="dl" style="margin-top:8px"></a>
 </details>
 
 <details class="w" id="vow">
@@ -388,6 +391,18 @@ $('vfile').onchange=async e=>{
 $('vgit').onclick=async()=>{
   try{ st('Memuat suara.txt...'); const t=await getText('suara.txt'); $('vtext').value=t.trim(); S.s('sv_vtext',t.trim()); st('suara.txt dimuat: '+t.split(/\n/).filter(x=>x.trim()).length+' baris.'); }
   catch(e){ st('Tiada suara.txt dalam GitHub lagi',1); }
+};
+$('aonly').onclick=async()=>{
+  const text=$('script').value.trim(); if(!text) return st('Isi skrip suara dahulu',1);
+  const b=$('aonly'), dl=$('adl'), au=$('aplay'); b.disabled=true; dl.style.display=au.style.display='none';
+  try{ st('Menjana audio...'); const r=await tts(text);
+    const buf=ensureAC().createBuffer(1,r.d.length,r.rate); buf.getChannelData(0).set(r.d);
+    if(dl.href) URL.revokeObjectURL(dl.href);
+    const url=URL.createObjectURL(toWav(buf)); au.src=url; au.style.display='block';
+    dl.href=url; dl.download='audio-'+Date.now()+'.wav'; dl.textContent='Muat Turun Audio (WAV, '+buf.duration.toFixed(1)+' saat)'; dl.style.display='block';
+    st('Audio siap');
+  }catch(e){st(e.message,1)}
+  finally{b.disabled=false}
 };
 $('vgen').onclick=makeStamped; $('vplay').onclick=playStamped;
 try{ $('vtext').value=S.g('sv_vtext'); $('vtext').addEventListener('input',()=>S.s('sv_vtext',$('vtext').value)); }catch(e){}
