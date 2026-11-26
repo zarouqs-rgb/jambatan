@@ -54,6 +54,8 @@ a.dl{display:none;text-align:center;padding:14px;border-radius:10px;background:#
   <label>Tampal teks. Setiap baris mula dengan masa, contoh 00:00 atau 00:05.5 atau 00:00 - 00:04</label>
   <textarea id="vtext" style="min-height:160px" placeholder="00:00 Hujan turun lebat...&#10;00:04 Ramai yang lalu...&#10;00:08.5 Seorang budak muda..."></textarea>
   <div class="row" style="margin-top:8px"><button id="vpaste">📋 Tampal</button><button id="vgit">Muat suara.txt (GitHub)</button></div>
+  <label>Atau buka fail teks dari phone (.txt / .srt)</label>
+  <input id="vfile" type="file" accept=".txt,.srt,.vtt,text/plain">
   <label>Jika suara lebih panjang daripada ruang masa</label>
   <select id="vfit"><option value="fast">Percepatkan sedikit tanpa ubah nada (maks 1.3x), lebih dari itu anjak</option><option value="push">Anjak baris seterusnya</option><option value="over">Biar bertindih</option></select>
   <div class="row" style="margin-top:8px"><button id="vgen" class="p">Jana Suara Ikut Masa</button><button id="vplay">Dengar</button></div>
@@ -368,7 +370,16 @@ function playStamped(){
 $('vpaste').onclick=async()=>{
   try{ const t=await navigator.clipboard.readText(); if(!t.trim()) throw 0;
     $('vtext').value=t; S.s('sv_vtext',t); st('Teks ditampal: '+t.split(/\n/).filter(x=>x.trim()).length+' baris.'); }
-  catch(e){ $('vtext').focus(); st('Pelayar tak benarkan tampal terus di sini. Hantar teks kepada Claude untuk disimpan sebagai suara.txt, kemudian tekan Muat suara.txt.',1); }
+  catch(e){ // Canvas sekat baca clipboard: guna tampal manual
+    const ta=$('vtext'); ta.focus(); ta.select(); ta.scrollIntoView({block:'center'});
+    st('Butang ini disekat di sini. Tekan lama dalam kotak teks, pilih Tampal (atau tekan teks pada papan klip keyboard).',1); }
+};
+$('vfile').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{ const t=(await f.text()).replace(/^\uFEFF/,'').replace(/^WEBVTT.*\r?\n/,'').trim(); if(!t) throw 0;
+    $('vtext').value=t; S.s('sv_vtext',t); st('Fail dimuat: '+f.name); }
+  catch(_){ st('Fail kosong atau tak boleh dibaca',1); }
+  e.target.value='';
 };
 $('vgit').onclick=async()=>{
   try{ st('Memuat suara.txt...'); const t=await getText('suara.txt'); $('vtext').value=t.trim(); S.s('sv_vtext',t.trim()); st('suara.txt dimuat: '+t.split(/\n/).filter(x=>x.trim()).length+' baris.'); }
